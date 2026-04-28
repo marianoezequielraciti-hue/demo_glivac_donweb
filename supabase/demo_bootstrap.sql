@@ -213,14 +213,14 @@ insert into products (barcode, name, category, unit, current_stock, min_stock, p
 on conflict do nothing;
 
 -- ────────────────────────────────────────────────────────────
--- 8. PRIMER ADMIN
+-- 8. USUARIOS ADMIN
 -- ────────────────────────────────────────────────────────────
--- Después de crear tu usuario en Supabase Auth, ejecutá esto
--- reemplazando el email con el tuyo:
---
--- update user_profiles
--- set role = 'admin'
--- where email = 'tu@email.com';
+insert into user_profiles (id, email, role, store_id) values
+  ('0896d672-7fcb-489e-92a9-16aaa06526c1', 'alignac@gmail.com',                'admin', '00000000-0000-0000-0000-000000000001'),
+  ('f54a64bb-6b6c-4845-bc1e-b3aca734680d', 'demoglivac@gmail.com',             'admin', '00000000-0000-0000-0000-000000000001'),
+  ('0b4a3883-b56e-4aad-9f9c-6b6e9892ca88', 'marianoezequielraciti@gmail.com',  'admin', '00000000-0000-0000-0000-000000000001'),
+  ('a89e7fed-1cba-4378-9113-877230a654b0', 'matias.0122.vazquez@gmail.com',    'admin', '00000000-0000-0000-0000-000000000001')
+on conflict (id) do update set role = 'admin';
 
 -- ────────────────────────────────────────────────────────────
 -- VERIFICACIÓN

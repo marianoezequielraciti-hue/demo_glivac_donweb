@@ -1,469 +1,230 @@
--- Glivac Demo
--- Bootstrap limpio para una base nueva de Supabase.
--- Este archivo reemplaza los scripts históricos de fixes y migraciones manuales.
--- Ejecutar en una base vacía desde Supabase SQL Editor.
+-- ============================================================
+-- GLIVAC DEMO — Bootstrap completo desde cero
+-- Ejecutar en Supabase > SQL Editor sobre una base vacía
+-- ============================================================
 
-create extension if not exists "pgcrypto";
+-- ────────────────────────────────────────────────────────────
+-- 1. EXTENSIONES
+-- ────────────────────────────────────────────────────────────
+create extension if not exists "uuid-ossp";
 
-create table if not exists app_roles (
-  code text primary key,
-  label text not null,
-  scope text not null check (scope in ('global', 'store')),
-  can_manage_settings boolean not null default false,
-  can_view_reports boolean not null default false,
-  can_manage_catalog boolean not null default false,
-  can_manage_cash_register boolean not null default false,
-  can_manage_expenses boolean not null default false,
-  sort_order integer not null default 100
-);
-
-insert into app_roles (
-  code,
-  label,
-  scope,
-  can_manage_settings,
-  can_view_reports,
-  can_manage_catalog,
-  can_manage_cash_register,
-  can_manage_expenses,
-  sort_order
-)
-values
-  ('owner', 'Owner', 'global', true, true, true, true, true, 10),
-  ('admin', 'Administrador', 'global', true, true, true, true, true, 20),
-  ('manager', 'Encargado', 'store', false, true, true, true, true, 30),
-  ('cashier', 'Cajero', 'store', false, false, false, true, false, 40),
-  ('inventory', 'Stock', 'store', false, false, true, false, false, 50),
-  ('analyst', 'Analista', 'store', false, true, false, false, false, 60),
-  ('employee', 'Empleado', 'store', false, false, false, true, false, 70)
-on conflict (code) do update set
-  label = excluded.label,
-  scope = excluded.scope,
-  can_manage_settings = excluded.can_manage_settings,
-  can_view_reports = excluded.can_view_reports,
-  can_manage_catalog = excluded.can_manage_catalog,
-  can_manage_cash_register = excluded.can_manage_cash_register,
-  can_manage_expenses = excluded.can_manage_expenses,
-  sort_order = excluded.sort_order;
+-- ────────────────────────────────────────────────────────────
+-- 2. TABLAS
+-- ────────────────────────────────────────────────────────────
 
 create table if not exists stores (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  type text not null check (type in ('fiambreria', 'kiosco')),
-  active boolean not null default true,
-  created_at timestamptz not null default now()
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  type       text check (type in ('local','deposito','otro')),
+  active     boolean default true,
+  created_at timestamptz default now()
 );
 
 create table if not exists user_profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text not null unique,
-  role text not null references app_roles(code) on update cascade,
-  username text,
-  store_id uuid references stores(id) on delete set null,
-  created_at timestamptz not null default now(),
-  constraint user_profiles_store_role_guard check (
-    (role in ('owner', 'admin') and store_id is null)
-    or
-    (role not in ('owner', 'admin'))
-  )
+  id         uuid primary key references auth.users(id) on delete cascade,
+  email      text not null unique,
+  role       text not null default 'employee' check (role in ('admin','employee')),
+  store_id   uuid references stores(id),
+  created_at timestamptz default now()
 );
 
 create table if not exists products (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid references stores(id) on delete set null,
-  barcode text,
-  name text not null,
-  category text default 'Otros',
-  unit text default 'unidad',
-  current_stock numeric not null default 0,
-  min_stock numeric not null default 0,
-  purchase_price numeric not null default 0,
-  sale_price numeric not null default 0,
-  allow_negative_stock boolean not null default true,
-  active boolean not null default true,
-  expiration_date date,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  id                   uuid primary key default gen_random_uuid(),
+  barcode              text,
+  name                 text not null,
+  category             text default 'Otros',
+  unit                 text default 'unidad',
+  current_stock        numeric default 0,
+  min_stock            numeric default 0,
+  purchase_price       numeric default 0,
+  sale_price           numeric not null default 0,
+  allow_negative_stock boolean default true,
+  active               boolean default true,
+  store_id             uuid references stores(id),
+  expiration_date      date,
+  created_at           timestamptz default now(),
+  updated_at           timestamptz default now(),
+  unique (barcode, store_id)
 );
 
 create table if not exists sales (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid references stores(id) on delete set null,
-  sale_number text not null,
-  items jsonb not null default '[]',
-  total numeric not null default 0,
+  id             uuid primary key default gen_random_uuid(),
+  sale_number    text not null,
+  items          jsonb not null default '[]',
+  total          numeric not null default 0,
   payment_method text not null default 'efectivo',
-  cashier text not null,
-  notes text default '',
-  created_at timestamptz not null default now()
+  cashier        text not null,
+  notes          text default '',
+  store_id       uuid references stores(id),
+  created_at     timestamptz default now()
 );
 
 create table if not exists expenses (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid references stores(id) on delete set null,
-  description text not null,
-  amount numeric not null default 0,
-  category text not null default 'Otros',
+  id           uuid primary key default gen_random_uuid(),
+  description  text not null,
+  amount       numeric not null default 0,
+  category     text not null default 'Otros',
   expense_type text not null default 'variable',
-  date date not null default current_date,
-  notes text default '',
-  purchase_id uuid,
-  created_at timestamptz not null default now()
+  date         date not null default current_date,
+  notes        text default '',
+  purchase_id  uuid,
+  store_id     uuid references stores(id),
+  created_at   timestamptz default now()
 );
 
 create table if not exists purchases (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid references stores(id) on delete set null,
-  supplier text default '',
+  id             uuid primary key default gen_random_uuid(),
+  supplier       text default '',
   invoice_number text default '',
-  items jsonb not null default '[]',
-  total numeric not null default 0,
-  notes text default '',
-  expense_id uuid references expenses(id) on delete set null,
-  created_at timestamptz not null default now()
+  items          jsonb not null default '[]',
+  total          numeric not null default 0,
+  notes          text default '',
+  expense_id     uuid references expenses(id) on delete set null,
+  store_id       uuid references stores(id),
+  created_at     timestamptz default now()
 );
 
 create table if not exists fiados (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid references stores(id) on delete set null,
-  sale_id uuid references sales(id) on delete set null,
-  customer_name text not null,
-  amount numeric(10,2) not null default 0,
-  items jsonb not null default '[]',
-  status text not null default 'pendiente' check (status in ('pendiente', 'pagado')),
-  paid_method text check (paid_method in ('efectivo', 'mercadopago')),
-  paid_at timestamptz,
-  notes text,
-  created_at timestamptz not null default now()
+  id         uuid primary key default gen_random_uuid(),
+  client     text not null,
+  amount     numeric not null default 0,
+  paid       boolean default false,
+  notes      text default '',
+  store_id   uuid references stores(id),
+  created_at timestamptz default now()
 );
 
 create table if not exists shift_logs (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid references stores(id) on delete set null,
-  cajero text not null,
-  inicio timestamptz not null,
-  fin timestamptz not null,
-  monto_inicial numeric not null default 0,
-  monto_esperado numeric not null default 0,
-  monto_real numeric not null default 0,
-  diferencia numeric not null default 0,
-  total_ventas integer not null default 0,
-  total_recaudado numeric not null default 0,
-  total_efectivo numeric not null default 0,
-  total_digital numeric not null default 0,
-  observaciones text,
-  created_at timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  cashier        text not null,
+  opened_at      timestamptz default now(),
+  closed_at      timestamptz,
+  opening_amount numeric default 0,
+  closing_amount numeric,
+  store_id       uuid references stores(id)
 );
 
-create table if not exists open_shifts (
-  id uuid primary key default gen_random_uuid(),
-  store_id uuid not null references stores(id) on delete cascade,
-  cajero text not null,
-  inicio timestamptz not null default now(),
-  created_at timestamptz not null default now()
-);
+-- ────────────────────────────────────────────────────────────
+-- 3. ÍNDICES
+-- ────────────────────────────────────────────────────────────
+create index if not exists idx_products_active    on products(active);
+create index if not exists idx_products_store     on products(store_id);
+create index if not exists idx_products_barcode   on products(barcode);
+create index if not exists idx_sales_created      on sales(created_at desc);
+create index if not exists idx_sales_store        on sales(store_id);
+create index if not exists idx_expenses_date      on expenses(date desc);
+create index if not exists idx_expenses_store     on expenses(store_id);
+create index if not exists idx_purchases_created  on purchases(created_at desc);
+create index if not exists idx_purchases_store    on purchases(store_id);
 
-create unique index if not exists products_store_barcode_unique
-  on products(store_id, barcode)
-  where barcode is not null;
+-- ────────────────────────────────────────────────────────────
+-- 4. ROW LEVEL SECURITY
+-- ────────────────────────────────────────────────────────────
+alter table stores        enable row level security;
+alter table user_profiles disable row level security;
+alter table products      enable row level security;
+alter table sales         enable row level security;
+alter table expenses      enable row level security;
+alter table purchases     enable row level security;
+alter table fiados        enable row level security;
+alter table shift_logs    enable row level security;
 
-create index if not exists idx_products_store on products(store_id);
-create index if not exists idx_products_active on products(active);
-create index if not exists idx_sales_store on sales(store_id);
-create index if not exists idx_sales_created on sales(created_at desc);
-create index if not exists idx_expenses_store on expenses(store_id);
-create index if not exists idx_expenses_date on expenses(date desc);
-create index if not exists idx_purchases_store on purchases(store_id);
-create index if not exists idx_purchases_created on purchases(created_at desc);
-create index if not exists idx_fiados_store on fiados(store_id);
-create index if not exists idx_shift_logs_store on shift_logs(store_id);
-create index if not exists idx_open_shifts_store on open_shifts(store_id);
-create index if not exists idx_user_profiles_role on user_profiles(role);
+create policy "stores_select"      on stores      for select using (auth.role() = 'authenticated');
+create policy "auth_all_products"  on products    for all    using (auth.role() = 'authenticated');
+create policy "auth_all_sales"     on sales       for all    using (auth.role() = 'authenticated');
+create policy "auth_all_expenses"  on expenses    for all    using (auth.role() = 'authenticated');
+create policy "auth_all_purchases" on purchases   for all    using (auth.role() = 'authenticated');
+create policy "auth_all_fiados"    on fiados      for all    using (auth.role() = 'authenticated');
+create policy "auth_all_shiftlogs" on shift_logs  for all    using (auth.role() = 'authenticated');
 
-insert into stores (name, type)
-values
-  ('Casa Central', 'fiambreria'),
-  ('Kiosco Demo', 'kiosco')
-on conflict do nothing;
-
-create or replace function touch_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_products_touch_updated_at on products;
-create trigger trg_products_touch_updated_at
-before update on products
-for each row
-execute function touch_updated_at();
-
-alter table app_roles enable row level security;
-alter table stores enable row level security;
-alter table user_profiles enable row level security;
-alter table products enable row level security;
-alter table sales enable row level security;
-alter table expenses enable row level security;
-alter table purchases enable row level security;
-alter table fiados enable row level security;
-alter table shift_logs enable row level security;
-alter table open_shifts enable row level security;
-
+-- ────────────────────────────────────────────────────────────
+-- 5. FUNCIONES DE ROL
+-- ────────────────────────────────────────────────────────────
 create or replace function get_my_role()
-returns text
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select role
-  from user_profiles
-  where id = auth.uid();
-$$;
-
-create or replace function get_my_store_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select store_id
-  from user_profiles
-  where id = auth.uid();
-$$;
-
-create or replace function has_permission(permission_name text)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(
-    case permission_name
-      when 'manage_settings' then app_roles.can_manage_settings
-      when 'view_reports' then app_roles.can_view_reports
-      when 'manage_catalog' then app_roles.can_manage_catalog
-      when 'manage_cash_register' then app_roles.can_manage_cash_register
-      when 'manage_expenses' then app_roles.can_manage_expenses
-      else false
-    end,
-    false
-  )
-  from user_profiles
-  join app_roles on app_roles.code = user_profiles.role
-  where user_profiles.id = auth.uid();
+  returns text language sql security definer as $$
+  select role from user_profiles where id = auth.uid();
 $$;
 
 create or replace function is_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select has_permission('manage_settings');
+  returns boolean language sql security definer as $$
+  select exists (
+    select 1 from user_profiles where id = auth.uid() and role = 'admin'
+  );
 $$;
 
-create or replace function ensure_my_profile(preferred_role text default 'cashier')
-returns user_profiles
-language plpgsql
-security definer
-set search_path = public
-as $$
+-- Crea o actualiza el perfil del usuario al loguear
+create or replace function ensure_my_profile(preferred_role text default 'employee')
+  returns user_profiles language plpgsql security definer as $$
 declare
-  current_email text;
+  v_email text := current_setting('request.jwt.claims.email', true);
 begin
-  current_email := coalesce(auth.jwt() ->> 'email', '');
-
   insert into user_profiles (id, email, role)
-  values (auth.uid(), current_email, preferred_role)
-  on conflict (id) do update
-    set email = excluded.email;
-
-  return (
-    select up
-    from user_profiles up
-    where up.id = auth.uid()
-  );
+    values (auth.uid(), coalesce(v_email, ''), preferred_role)
+    on conflict (id) do update
+      set email = coalesce(v_email, user_profiles.email);
+  return (select * from user_profiles where id = auth.uid());
 end;
 $$;
 
-create or replace view role_catalog as
-select
-  code,
-  label,
-  scope,
-  can_manage_settings,
-  can_view_reports,
-  can_manage_catalog,
-  can_manage_cash_register,
-  can_manage_expenses,
-  sort_order
-from app_roles;
+-- ────────────────────────────────────────────────────────────
+-- 6. STORE DEMO
+-- ────────────────────────────────────────────────────────────
+insert into stores (id, name, type) values
+  ('00000000-0000-0000-0000-000000000001', 'Glivac Demo', 'local')
+on conflict do nothing;
 
-do $drop$
-declare row record;
-begin
-  for row in
-    select policyname, tablename
-    from pg_policies
-    where schemaname = 'public'
-      and tablename in (
-        'app_roles',
-        'stores',
-        'user_profiles',
-        'products',
-        'sales',
-        'expenses',
-        'purchases',
-        'fiados',
-        'shift_logs',
-        'open_shifts'
-      )
-  loop
-    execute format('drop policy if exists %I on %I', row.policyname, row.tablename);
-  end loop;
-end $drop$;
+-- ────────────────────────────────────────────────────────────
+-- 7. PRODUCTOS DEMO (26 productos en 6 categorías)
+-- ────────────────────────────────────────────────────────────
+insert into products (barcode, name, category, unit, current_stock, min_stock, purchase_price, sale_price, store_id) values
+  -- Bebidas
+  ('7790070010007', 'Coca-Cola 600ml',          'Bebidas',    'unidad', 48,  12,  850, 1200, '00000000-0000-0000-0000-000000000001'),
+  ('7790070010014', 'Sprite 600ml',             'Bebidas',    'unidad', 36,  12,  820, 1150, '00000000-0000-0000-0000-000000000001'),
+  ('7790070020003', 'Agua Mineral 500ml',       'Bebidas',    'unidad', 60,  24,  400,  650, '00000000-0000-0000-0000-000000000001'),
+  -- Lácteos
+  ('7790710600010', 'Leche Entera 1L',          'Lácteos',   'unidad', 30,  10,  980, 1350, '00000000-0000-0000-0000-000000000001'),
+  ('7790040010010', 'Yogur Natural 190g',       'Lácteos',   'unidad', 20,   6,  450,  700, '00000000-0000-0000-0000-000000000001'),
+  ('7798042480127', 'Manteca 200g',             'Lácteos',   'unidad', 15,   5, 1100, 1500, '00000000-0000-0000-0000-000000000001'),
+  -- Almacén
+  ('7790580000014', 'Aceite Girasol 900ml',     'Almacén',   'unidad', 20,   6, 1800, 2400, '00000000-0000-0000-0000-000000000001'),
+  ('7790380010016', 'Arroz Largo Fino 1kg',     'Almacén',   'unidad', 25,   8,  950, 1300, '00000000-0000-0000-0000-000000000001'),
+  ('7790380020015', 'Fideos Spaghetti 500g',    'Almacén',   'unidad', 30,  10,  600,  900, '00000000-0000-0000-0000-000000000001'),
+  ('7790040030012', 'Harina 000 1kg',           'Almacén',   'unidad', 20,   8,  700, 1000, '00000000-0000-0000-0000-000000000001'),
+  ('7790040040011', 'Azúcar 1kg',               'Almacén',   'unidad', 18,   6,  900, 1250, '00000000-0000-0000-0000-000000000001'),
+  ('7790480000018', 'Sal Fina 500g',            'Almacén',   'unidad', 15,   5,  350,  550, '00000000-0000-0000-0000-000000000001'),
+  -- Limpieza
+  ('7791290000015', 'Lavandina 1L',             'Limpieza',  'unidad', 24,   8,  550,  850, '00000000-0000-0000-0000-000000000001'),
+  ('7793640000017', 'Detergente 500ml',         'Limpieza',  'unidad', 18,   6,  700, 1050, '00000000-0000-0000-0000-000000000001'),
+  ('7793200000010', 'Jabón en Polvo 500g',      'Limpieza',  'unidad', 12,   4, 1200, 1700, '00000000-0000-0000-0000-000000000001'),
+  -- Snacks
+  ('7790580010013', 'Papas Fritas 100g',        'Snacks',    'unidad', 40,  12,  550,  850, '00000000-0000-0000-0000-000000000001'),
+  ('7790580010020', 'Galletas Dulces 200g',     'Snacks',    'unidad', 30,  10,  600,  900, '00000000-0000-0000-0000-000000000001'),
+  ('7790930000013', 'Alfajor Triple',           'Snacks',    'unidad', 50,  20,  380,  600, '00000000-0000-0000-0000-000000000001'),
+  ('7790930000020', 'Chocolate con Leche 100g', 'Snacks',    'unidad', 35,  12,  700, 1100, '00000000-0000-0000-0000-000000000001'),
+  -- Fiambrería
+  (null, 'Jamón Cocido (kg)',                   'Fiambrería','kg',      8,    2, 4500, 6500, '00000000-0000-0000-0000-000000000001'),
+  (null, 'Salame (kg)',                         'Fiambrería','kg',      5,    2, 5000, 7200, '00000000-0000-0000-0000-000000000001'),
+  (null, 'Queso Cremoso (kg)',                  'Fiambrería','kg',      6,    2, 5500, 8000, '00000000-0000-0000-0000-000000000001'),
+  (null, 'Queso Sardo (kg)',                    'Fiambrería','kg',      4,    1, 6000, 8500, '00000000-0000-0000-0000-000000000001'),
+  -- Verdulería
+  (null, 'Tomate (kg)',                         'Verdulería','kg',     10,    3,  800, 1200, '00000000-0000-0000-0000-000000000001'),
+  (null, 'Papa (kg)',                           'Verdulería','kg',     15,    5,  600,  950, '00000000-0000-0000-0000-000000000001'),
+  (null, 'Cebolla (kg)',                        'Verdulería','kg',     12,    4,  500,  800, '00000000-0000-0000-0000-000000000001')
+on conflict do nothing;
 
-create policy "app_roles_select" on app_roles
-  for select using (auth.role() = 'authenticated');
+-- ────────────────────────────────────────────────────────────
+-- 8. PRIMER ADMIN
+-- ────────────────────────────────────────────────────────────
+-- Después de crear tu usuario en Supabase Auth, ejecutá esto
+-- reemplazando el email con el tuyo:
+--
+-- update user_profiles
+-- set role = 'admin'
+-- where email = 'tu@email.com';
 
-create policy "app_roles_admin" on app_roles
-  for all using (is_admin()) with check (is_admin());
-
-create policy "stores_select" on stores
-  for select using (auth.role() = 'authenticated');
-
-create policy "stores_admin" on stores
-  for all using (is_admin()) with check (is_admin());
-
-create policy "profiles_self" on user_profiles
-  for select using (auth.uid() = id);
-
-create policy "profiles_admin_all" on user_profiles
-  for all using (is_admin()) with check (is_admin());
-
-create policy "products_select" on products
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "products_insert" on products
-  for insert with check (
-    (is_admin() and store_id is not null)
-    or
-    (store_id = get_my_store_id())
-  );
-
-create policy "products_update" on products
-  for update using (is_admin() or store_id = get_my_store_id())
-  with check (is_admin() or store_id = get_my_store_id());
-
-create policy "products_delete" on products
-  for delete using (is_admin());
-
-create policy "sales_select" on sales
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "sales_insert" on sales
-  for insert with check (
-    auth.role() = 'authenticated'
-    and (
-      (is_admin() and store_id is not null)
-      or
-      store_id = get_my_store_id()
-    )
-  );
-
-create policy "sales_delete" on sales
-  for delete using (is_admin());
-
-create policy "purchases_select" on purchases
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "purchases_insert" on purchases
-  for insert with check (
-    auth.role() = 'authenticated'
-    and (
-      (is_admin() and store_id is not null)
-      or
-      store_id = get_my_store_id()
-    )
-  );
-
-create policy "purchases_update" on purchases
-  for update using (is_admin() or store_id = get_my_store_id())
-  with check (is_admin() or store_id = get_my_store_id());
-
-create policy "purchases_delete" on purchases
-  for delete using (is_admin());
-
-create policy "expenses_select" on expenses
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "expenses_insert" on expenses
-  for insert with check (
-    (is_admin() and store_id is not null)
-    or
-    store_id = get_my_store_id()
-  );
-
-create policy "expenses_update" on expenses
-  for update using (is_admin() or store_id = get_my_store_id())
-  with check (is_admin() or store_id = get_my_store_id());
-
-create policy "expenses_delete" on expenses
-  for delete using (is_admin());
-
-create policy "fiados_select" on fiados
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "fiados_insert" on fiados
-  for insert with check (
-    auth.role() = 'authenticated'
-    and (
-      (is_admin() and store_id is not null)
-      or
-      store_id = get_my_store_id()
-    )
-  );
-
-create policy "fiados_update" on fiados
-  for update using (is_admin() or store_id = get_my_store_id())
-  with check (is_admin() or store_id = get_my_store_id());
-
-create policy "fiados_delete" on fiados
-  for delete using (is_admin());
-
-create policy "shift_logs_select" on shift_logs
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "shift_logs_insert" on shift_logs
-  for insert with check (
-    auth.role() = 'authenticated'
-    and (
-      (is_admin() and store_id is not null)
-      or
-      store_id = get_my_store_id()
-    )
-  );
-
-create policy "open_shifts_select" on open_shifts
-  for select using (is_admin() or store_id = get_my_store_id());
-
-create policy "open_shifts_insert" on open_shifts
-  for insert with check (
-    auth.role() = 'authenticated'
-    and (
-      (is_admin() and store_id is not null)
-      or
-      store_id = get_my_store_id()
-    )
-  );
-
-create policy "open_shifts_delete" on open_shifts
-  for delete using (is_admin() or store_id = get_my_store_id());
+-- ────────────────────────────────────────────────────────────
+-- VERIFICACIÓN
+-- ────────────────────────────────────────────────────────────
+-- select count(*) from products;   -- 26
+-- select * from stores;
+-- select name, role from user_profiles;

@@ -16,7 +16,6 @@ export default function Settings() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState(getDefaultRoleForDemo())
-  const [inviteStoreId, setInviteStoreId] = useState('')
   const [invitePassword, setInvitePassword] = useState('')
   const [sendInvite, setSendInvite] = useState(false)
   const [inviting, setInviting] = useState(false)
@@ -58,18 +57,13 @@ export default function Settings() {
       toast.error('Ingresá un email')
       return
     }
-    if (roleRequiresStore(inviteRole) && !inviteStoreId) {
-      toast.error('Seleccioná un negocio para el empleado')
-      return
-    }
-
     setInviting(true)
     try {
       const { credentials } = await createAdminUser({
         email: inviteEmail,
         username: inviteName,
         role: inviteRole,
-        storeId: roleRequiresStore(inviteRole) ? inviteStoreId : null,
+        storeId: stores[0]?.id || null,
         password: invitePassword,
         sendInvite,
       })
@@ -78,7 +72,6 @@ export default function Settings() {
       setInviteEmail('')
       setInviteName('')
       setInviteRole(getDefaultRoleForDemo())
-      setInviteStoreId('')
       setInvitePassword('')
       setSendInvite(false)
       loadProfiles()
@@ -148,7 +141,7 @@ export default function Settings() {
           sheetName: 'Gastos',
           opts: { title: `Gastos — ${fecha}`, totals: { amount: expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0) } },
         },
-      ], `backup_vale_${ts}`)
+      ], `backup_glivac_${ts}`)
       toast.success('Backup descargado correctamente')
     } catch (error) {
       toast.error('Error al exportar: ' + error.message)
@@ -228,7 +221,7 @@ export default function Settings() {
     <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
-        <p className="text-gray-500 text-sm mt-1">Administración de datos, accesos y demo multi-negocio</p>
+        <p className="text-gray-500 text-sm mt-1">Administración de datos y accesos</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
@@ -254,17 +247,6 @@ export default function Settings() {
           >
             {ROLE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <select
-            value={inviteStoreId}
-            onChange={(event) => setInviteStoreId(event.target.value)}
-            disabled={!roleRequiresStore(inviteRole)}
-            className="h-11 px-3 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400"
-          >
-            <option value="">{roleRequiresStore(inviteRole) ? 'Seleccionar negocio' : 'Rol global sin negocio fijo'}</option>
-            {stores.map((store) => (
-              <option key={store.id} value={store.id}>{store.name}</option>
             ))}
           </select>
           <input
@@ -310,7 +292,6 @@ export default function Settings() {
                   <th className="px-4 py-2">Nombre</th>
                   <th className="px-4 py-2">Email</th>
                   <th className="px-4 py-2">Rol</th>
-                  <th className="px-4 py-2">Negocio</th>
                   <th className="px-4 py-2">Creado</th>
                   <th className="px-4 py-2">Estado</th>
                 </tr>
@@ -341,21 +322,8 @@ export default function Settings() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-2">
-                      <select
-                        value={profile.store_id || ''}
-                        disabled={!roleRequiresStore(profile.role)}
-                        onChange={(event) => handleStoreChange(profile, event.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm disabled:bg-gray-50 disabled:text-gray-400"
-                      >
-                        <option value="">{roleRequiresStore(profile.role) ? 'Sin asignar' : 'Todos'}</option>
-                        {stores.map((store) => (
-                          <option key={store.id} value={store.id}>{store.name}</option>
-                        ))}
-                      </select>
-                    </td>
                     <td className="px-4 py-2">{new Date(profile.created_at).toLocaleDateString('es-AR')}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500">{profile.store_name || 'Gestionado desde la demo'}</td>
+                    <td className="px-4 py-2 text-xs text-gray-500">{profile.store_name || 'Glivac'}</td>
                   </tr>
                 ))}
               </tbody>

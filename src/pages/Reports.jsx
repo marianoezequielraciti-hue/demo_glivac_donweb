@@ -413,7 +413,7 @@ Incluí TODOS los productos. Sé directo y específico.`
       const parsed = JSON.parse(stripped.slice(start, end + 1))
       parsed.productos = (parsed.productos || []).map(p => ({
         ...p,
-        link_google: `https://www.google.com.ar/search?q=${encodeURIComponent(p.nombre + ' precio kiosco fiambreria argentina')}`,
+        link_google: `https://www.google.com.ar/search?q=${encodeURIComponent(p.nombre + ' precio argentina')}`,
       }))
       setSalesPriceInsights(parsed)
       setTimeout(() => salesPriceInsightsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)

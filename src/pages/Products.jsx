@@ -267,7 +267,7 @@ export default function Products() {
     const mapped = products.map(p => ({ ...p, active: p.active ? 'Sí' : 'No' }))
     const date = new Date().toISOString().split('T')[0]
     exportToXlsx(mapped, PRODUCT_COLUMNS, `productos_${date}`, 'Productos', {
-      title: 'Fiambrerías Vale — Productos',
+      title: 'Glivac — Productos',
       subtitle: `Exportado el ${date}`,
     })
   }

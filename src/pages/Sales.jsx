@@ -52,7 +52,7 @@ export default function Sales() {
       `ventas_${new Date().toISOString().split('T')[0]}`,
       'Ventas',
       {
-        title: 'Fiambrerías Vale — Historial de Ventas',
+        title: 'Glivac — Historial de Ventas',
         subtitle: `Exportado el ${new Date().toLocaleDateString('es-AR')}`,
         totals: { total: filtered.reduce((sum, v) => sum + (v.total || 0), 0) }
       }

@@ -83,7 +83,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-gray-500">{storeName || 'Fiambrerías Vale'}</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-gray-500">{storeName || 'Glivac'}</p>
           <h1 className="text-3xl font-bold">Panel de control</h1>
         </div>
       </header>

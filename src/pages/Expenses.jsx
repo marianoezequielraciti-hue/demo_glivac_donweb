@@ -70,7 +70,7 @@ export default function Expenses() {
       `gastos_${new Date().toISOString().split('T')[0]}`,
       'Gastos',
       {
-        title: 'Fiambrerías Vale — Gastos',
+        title: 'Glivac — Gastos',
         subtitle: `Exportado el ${new Date().toLocaleDateString('es-AR')}`,
         totals: { amount: filtered.reduce((sum, e) => sum + (e.amount || 0), 0) }
       }

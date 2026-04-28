@@ -33,7 +33,7 @@ export default function Layout() {
       <header className="bg-white/85 backdrop-blur-xl border-b border-zinc-200/60 fixed inset-x-0 top-0 z-50">
         <div className="max-w-[1200px] mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="text-sm font-semibold tracking-[0.15em] text-zinc-900 shrink-0">
-            {storeName ? storeName.toUpperCase() : 'VALE'}
+            {storeName ? storeName.toUpperCase() : 'GLIVAC'}
           </div>
           <nav className="hidden md:flex gap-1 flex-1 justify-center">
             {visibleNav.map(({ to, label }) => (

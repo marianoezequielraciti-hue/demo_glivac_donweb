@@ -5,7 +5,7 @@ export default function Receipt({ sale }) {
   return (
     <div id="receipt-content" style={{ fontFamily: 'monospace', width: '80mm', padding: '4mm' }}>
       <div style={{ textAlign: 'center', borderBottom: '1px dashed #000', paddingBottom: '4px', marginBottom: '8px' }}>
-        <div style={{ fontWeight: 'bold', fontSize: '14px' }}>FIAMBRERÍAS VALE</div>
+        <div style={{ fontWeight: 'bold', fontSize: '14px' }}>GLIVAC</div>
         <div style={{ fontSize: '10px' }}>Sistema de Gestión</div>
       </div>
       <div style={{ fontSize: '10px', marginBottom: '8px' }}>

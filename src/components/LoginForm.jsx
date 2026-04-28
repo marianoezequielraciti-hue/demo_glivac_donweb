@@ -21,7 +21,7 @@ export default function LoginForm() {
     <div className="min-h-screen bg-[var(--color-background-tertiary)] flex items-center justify-center">
       <div className="w-full max-w-sm bg-white border border-[var(--color-border-tertiary)] rounded-[var(--border-radius-lg)] p-8 shadow-lg">
         <div className="text-center mb-6">
-          <div className="text-2xl font-bold text-gray-900">Fiambrerías Vale</div>
+          <div className="text-2xl font-bold text-gray-900">Glivac</div>
           <p className="text-sm text-gray-500">Sistema de Gestión</p>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit}>

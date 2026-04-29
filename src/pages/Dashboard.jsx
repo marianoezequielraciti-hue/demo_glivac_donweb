@@ -15,6 +15,7 @@ const PAYMENT_BADGES = {
   transferencia: 'bg-sky-100 text-sky-800',
   qr: 'bg-purple-100 text-purple-800',
   tarjeta: 'bg-orange-100 text-orange-800',
+  fiado: 'bg-amber-100 text-amber-800',
 }
 
 const badgeClass = (method) => PAYMENT_BADGES[method] || 'bg-gray-100 text-gray-800'

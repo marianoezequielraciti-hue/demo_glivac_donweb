@@ -11,6 +11,7 @@ const PaymentBadge = ({ method }) => {
     transferencia: 'bg-blue-100 text-zinc-800',
     qr: 'bg-purple-100 text-purple-800',
     tarjeta: 'bg-orange-100 text-orange-800',
+    fiado: 'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[method] || 'bg-gray-100 text-gray-800'}`}>

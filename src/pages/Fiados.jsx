@@ -102,17 +102,20 @@ export default function Fiados() {
 
   const markPaidMutation = useMutation({
     mutationFn: async ({ id, method }) => {
-      const { error } = await supabase.from('fiados')
+      const { data, error } = await supabase.from('fiados')
         .update({ paid: true, notes: method })
         .eq('id', id)
+        .select('id')
+        .single()
       if (error) throw error
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fiados'] })
       toast.success('Fiado cobrado')
       setPayModal(null)
     },
-    onError: () => toast.error('Error al actualizar el fiado'),
+    onError: (err) => toast.error(`Error al cobrar: ${err.message}`),
   })
 
   const bulkMarkPaidMutation = useMutation({
@@ -121,6 +124,7 @@ export default function Fiados() {
         const { error } = await supabase.from('fiados')
           .update({ paid: true, notes: method })
           .eq('id', id)
+          .select('id')
         if (error) throw error
       }
     },
@@ -130,7 +134,7 @@ export default function Fiados() {
       setGroupModal(null)
       setPartialAmount('')
     },
-    onError: () => toast.error('Error al cobrar'),
+    onError: (err) => toast.error(`Error al cobrar: ${err.message}`),
   })
 
   const openGroupModal = (group, prefillTotal = false) => {

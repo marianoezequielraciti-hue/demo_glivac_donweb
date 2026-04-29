@@ -23,6 +23,13 @@ export function useStoreFilter() {
     return window.localStorage.getItem(STORAGE_KEY) || null
   }
 
+  // Auto-select the only store when there's just one
+  useEffect(() => {
+    if (stores.length === 1 && !selectedStoreId) {
+      setSelectedStoreId(stores[0].id)
+    }
+  }, [stores])
+
   const [selectedStoreId, setSelectedStoreId] = useState(getInitial)
 
   useEffect(() => {

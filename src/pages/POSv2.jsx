@@ -18,7 +18,7 @@ export default function POSv2() {
   const queryClient = useQueryClient()
   const { user, displayName, storeId, storeName } = useAuth()
   const { stores, selectedStoreId, setSelectedStoreId, currentStore, isAdmin } = useStoreFilter()
-  const effectiveStoreId = selectedStoreId || storeId
+  const effectiveStoreId = selectedStoreId || storeId || (stores.length === 1 ? stores[0].id : null)
   const [screen, setScreen] = useState('apertura')
   const [turno, setTurno] = useState(null)
   const [montoInicial, setMontoInicial] = useState('')

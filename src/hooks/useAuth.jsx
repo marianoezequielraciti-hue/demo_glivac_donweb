@@ -27,8 +27,8 @@ function getCached(userId) {
         storage.removeItem(ROLE_CACHE_KEY)
         continue
       }
-      // Invalidate cache if missing storeId or if role is a non-admin fallback
-      if (!('storeId' in parsed) || parsed.role === 'cashier') {
+      // If cache was saved before storeId was added, invalidate it so we re-fetch
+      if (!('storeId' in parsed)) {
         storage.removeItem(ROLE_CACHE_KEY)
         continue
       }
@@ -77,11 +77,11 @@ async function resolveProfile(userId, email) {
   try {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('role, store_id, stores(name)')
+      .select('role, username, store_id, stores(name, type)')
       .eq('id', userId)
       .single()
     if (!error && data?.role) {
-      const displayName = emailToName(email)
+      const displayName = data.username?.trim() || emailToName(email)
       const storeId = data.store_id || null
       const storeName = data.stores?.name || null
       setCache(userId, data.role, displayName, storeId, storeName)

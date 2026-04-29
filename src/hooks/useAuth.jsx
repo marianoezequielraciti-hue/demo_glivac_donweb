@@ -77,7 +77,7 @@ async function resolveProfile(userId, email) {
   try {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('role, username, store_id, stores(name, type)')
+      .select('role, username, store_id, stores(name)')
       .eq('id', userId)
       .single()
     if (!error && data?.role) {

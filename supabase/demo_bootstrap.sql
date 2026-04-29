@@ -23,6 +23,7 @@ create table if not exists stores (
 create table if not exists user_profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
   email      text not null unique,
+  username   text,
   role       text not null default 'employee' check (role in ('admin','employee')),
   store_id   uuid references stores(id),
   created_at timestamptz default now()

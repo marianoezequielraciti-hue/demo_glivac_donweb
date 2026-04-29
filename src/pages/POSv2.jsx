@@ -228,11 +228,10 @@ export default function POSv2() {
 
       if (method === 'fiado') {
         const { error: fiadoError } = await supabase.from('fiados').insert({
-          sale_id: sale.id,
-          customer_name: customerName,
+          client: customerName,
           amount: total,
-          items: cartItems,
-          status: 'pendiente',
+          paid: false,
+          notes: `Venta ${sale.sale_number}`,
           ...(turno.storeId ? { store_id: turno.storeId } : {}),
         })
         if (fiadoError) throw new Error(`Venta guardada pero falló el registro del fiado: ${fiadoError.message}`)

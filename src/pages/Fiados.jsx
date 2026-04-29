@@ -48,16 +48,25 @@ export default function Fiados() {
     enabled: !!user,
   })
 
+  // Normaliza fiado para soportar esquema viejo (client/paid) y nuevo (customer_name/status)
+  const normalize = (f) => ({
+    ...f,
+    customer_name: f.customer_name || f.client || '—',
+    status: f.status ?? (f.paid ? 'pagado' : 'pendiente'),
+  })
+
+  const normalizedFiados = useMemo(() => fiados.map(normalize), [fiados])
+
   const totalPendiente = useMemo(
-    () => fiados.filter(f => f.status === 'pendiente').reduce((s, f) => s + (f.amount || 0), 0),
-    [fiados]
+    () => normalizedFiados.filter(f => f.status === 'pendiente').reduce((s, f) => s + (f.amount || 0), 0),
+    [normalizedFiados]
   )
-  const countPendiente = useMemo(() => fiados.filter(f => f.status === 'pendiente').length, [fiados])
+  const countPendiente = useMemo(() => normalizedFiados.filter(f => f.status === 'pendiente').length, [normalizedFiados])
 
   // Pendientes agrupados por cliente, más viejo primero dentro del grupo
   const pendingGroups = useMemo(() => {
     const map = new Map()
-    fiados
+    normalizedFiados
       .filter(f => f.status === 'pendiente')
       .forEach(f => {
         if (!map.has(f.customer_name)) map.set(f.customer_name, [])
@@ -70,11 +79,11 @@ export default function Fiados() {
         total: items.reduce((s, f) => s + (f.amount || 0), 0),
       }))
       .sort((a, b) => b.total - a.total)
-  }, [fiados])
+  }, [normalizedFiados])
 
   const flatFiltered = useMemo(
-    () => filter === 'todos' ? fiados : fiados.filter(f => f.status === filter),
-    [fiados, filter]
+    () => filter === 'todos' ? normalizedFiados : normalizedFiados.filter(f => f.status === filter),
+    [normalizedFiados, filter]
   )
 
   // FIFO: qué fiados se pueden pagar completamente con `amount`
@@ -94,7 +103,7 @@ export default function Fiados() {
   const markPaidMutation = useMutation({
     mutationFn: async ({ id, method }) => {
       const { error } = await supabase.from('fiados')
-        .update({ status: 'pagado', paid_method: method, paid_at: new Date().toISOString() })
+        .update({ paid: true, notes: method })
         .eq('id', id)
       if (error) throw error
     },
@@ -108,10 +117,9 @@ export default function Fiados() {
 
   const bulkMarkPaidMutation = useMutation({
     mutationFn: async ({ ids, method }) => {
-      const now = new Date().toISOString()
       for (const id of ids) {
         const { error } = await supabase.from('fiados')
-          .update({ status: 'pagado', paid_method: method, paid_at: now })
+          .update({ paid: true, notes: method })
           .eq('id', id)
         if (error) throw error
       }

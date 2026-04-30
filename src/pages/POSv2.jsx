@@ -31,6 +31,10 @@ export default function POSv2() {
   const [fiadoCustomer, setFiadoCustomer] = useState('')
   const [showFiadoModal, setShowFiadoModal] = useState(false)
   const [pendingSale, setPendingSale] = useState(null)
+  const [showBudgetModal, setShowBudgetModal] = useState(false)
+  const [budgetClientSearch, setBudgetClientSearch] = useState('')
+  const [budgetClientId, setBudgetClientId] = useState(null)
+  const [budgetClientName, setBudgetClientName] = useState('')
   const fiadoInputRef = useRef(null)
   const [liveTime, setLiveTime] = useState(nowART())
   const [isNocturnalSurcharge, setIsNocturnalSurcharge] = useState(false)
@@ -212,6 +216,53 @@ export default function POSv2() {
   }
 
   const removeFromCart = (productId) => setCart(prev => prev.filter(i => i.product_id !== productId))
+
+  // Clientes para presupuesto
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients', effectiveStoreId],
+    queryFn: async () => {
+      let q = supabase.from('clients').select('id, full_name').eq('active', true).order('full_name')
+      if (effectiveStoreId) q = q.eq('store_id', effectiveStoreId)
+      const { data } = await q
+      return data || []
+    },
+    enabled: !!user,
+  })
+
+  const budgetMutation = useMutation({
+    mutationFn: async ({ cartItems, total, clientId }) => {
+      const { error } = await supabase.from('budgets').insert({
+        client_id: clientId,
+        budget_number: `P-${Date.now()}`,
+        status: 'draft',
+        items: cartItems,
+        subtotal: total,
+        ...(effectiveStoreId ? { store_id: effectiveStoreId } : {}),
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
+      toast.success('Presupuesto generado')
+      setCart([])
+      setShowBudgetModal(false)
+      setBudgetClientId(null)
+      setBudgetClientName('')
+      setBudgetClientSearch('')
+    },
+    onError: (err) => toast.error(`Error al generar presupuesto: ${err.message}`),
+  })
+
+  const handleOpenBudgetModal = () => {
+    if (!cart.length) { toast.error('Agregá productos al carrito'); return }
+    setShowBudgetModal(true)
+  }
+
+  const handleConfirmBudget = () => {
+    if (!budgetClientId) { toast.error('Seleccioná un cliente'); return }
+    const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
+    budgetMutation.mutate({ cartItems: [...cart], total, clientId: budgetClientId })
+  }
 
   const completeSaleMutation = useMutation({
     mutationFn: async ({ cartItems, total, method, customerName }) => {
@@ -918,6 +969,13 @@ export default function POSv2() {
                 {completeSaleMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 Confirmar venta
               </button>
+              <button
+                onClick={handleOpenBudgetModal}
+                disabled={!cart.length || budgetMutation.isPending}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 transition-colors"
+              >
+                📄 Generar presupuesto
+              </button>
             </div>
           )}
         </div>
@@ -946,6 +1004,63 @@ export default function POSv2() {
     <div className="hidden print:block">
       <Receipt sale={completedSale} />
     </div>
+
+    {/* Budget modal */}
+    {showBudgetModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-widest">Presupuesto</p>
+            <h3 className="text-xl font-bold mt-1">Seleccioná el cliente</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Total: <span className="font-semibold text-gray-900">{fmtMoney(cart.reduce((s, i) => s + i.subtotal, 0))}</span>
+              {' · '}{cart.length} {cart.length === 1 ? 'producto' : 'productos'}
+            </p>
+          </div>
+          <input
+            type="search"
+            placeholder="Buscar cliente..."
+            value={budgetClientSearch}
+            onChange={e => { setBudgetClientSearch(e.target.value); setBudgetClientId(null); setBudgetClientName('') }}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/20 focus:border-zinc-900"
+          />
+          <div className="max-h-40 overflow-y-auto space-y-1">
+            {clients
+              .filter(c => c.full_name.toLowerCase().includes(budgetClientSearch.toLowerCase()))
+              .map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => { setBudgetClientId(c.id); setBudgetClientName(c.full_name); setBudgetClientSearch(c.full_name) }}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    budgetClientId === c.id ? 'bg-zinc-900 text-white' : 'hover:bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {c.full_name}
+                </button>
+              ))}
+            {clients.filter(c => c.full_name.toLowerCase().includes(budgetClientSearch.toLowerCase())).length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-2">Sin resultados</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowBudgetModal(false); setBudgetClientId(null); setBudgetClientName(''); setBudgetClientSearch('') }}
+              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmBudget}
+              disabled={!budgetClientId || budgetMutation.isPending}
+              className="flex-1 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-semibold hover:bg-zinc-800 disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {budgetMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Fiado modal */}
     {showFiadoModal && (

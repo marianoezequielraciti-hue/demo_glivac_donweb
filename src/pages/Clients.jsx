@@ -54,7 +54,7 @@ export default function Clients() {
   const queryClient = useQueryClient()
   const { user, isAdmin, storeId } = useAuth()
   const { stores, selectedStoreId, setSelectedStoreId } = useStoreFilter()
-  const activeStoreId = selectedStoreId || storeId
+  const activeStoreId = selectedStoreId || storeId || (stores.length === 1 ? stores[0].id : null)
   const [search, setSearch] = useState('')
   const [selectedClientId, setSelectedClientId] = useState(null)
   const [editingClient, setEditingClient] = useState(null)

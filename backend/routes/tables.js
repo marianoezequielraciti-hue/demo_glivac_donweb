@@ -109,10 +109,11 @@ router.post('/:table', authMiddleware, async (req, res) => {
   const rows     = Array.isArray(req.body) ? req.body : [req.body];
 
   try {
-    const inserted = [];
+    const ids = [];
     for (const rawRow of rows) {
       const row = prepareRow(table, rawRow);
       if (!row.id) row.id = uuid();
+      ids.push(row.id);
 
       const cols = Object.keys(row);
       const vals = Object.values(row);
@@ -128,13 +129,15 @@ router.post('/:table', authMiddleware, async (req, res) => {
       }
 
       await pool.query(sql, vals);
-
-      const [[fresh]] = await pool.query(`SELECT * FROM \`${table}\` WHERE id = ?`, [row.id]);
-      inserted.push(fresh);
     }
 
-    const result = inserted.length === 1 ? inserted[0] : inserted;
-    res.status(201).json(result);
+    // Devolver filas insertadas solo si es inserción simple (no batch masivo)
+    if (ids.length === 1) {
+      const [[fresh]] = await pool.query(`SELECT * FROM \`${table}\` WHERE id = ?`, [ids[0]]);
+      return res.status(201).json(fresh || { id: ids[0] });
+    }
+
+    res.status(201).json({ inserted: ids.length });
   } catch (err) {
     console.error(`POST ${table}`, err.message);
     res.status(500).json({ error: err.message });

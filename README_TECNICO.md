@@ -260,4 +260,4 @@ VITE_SUPABASE_ADMIN_EMAILS=admin@ejemplo.com
 - **Estado servidor**: TanStack Query (React Query)
 - **Base de datos**: Supabase (PostgreSQL)
 - **Autenticación**: Supabase Auth
-- **Deploy**: Vercel 
+- **Deploy**: Vercel / Netlify

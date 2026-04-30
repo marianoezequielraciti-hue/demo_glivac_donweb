@@ -1,42 +1,20 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getDefaultRoleForDemo, isAdminRole, roleRequiresStore } from '@/lib/roles'
-
-const ADMIN_EMAILS = (import.meta.env.VITE_SUPABASE_ADMIN_EMAILS || '')
-  .split(',')
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean)
-
-const isAdminEmail = (email) => {
-  if (!email) return false
-  return ADMIN_EMAILS.includes(email.toLowerCase())
-}
+import { isAdminRole, roleRequiresStore } from '@/lib/roles'
 
 const ROLE_CACHE_KEY = 'glivac-demo-role-cache'
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const CACHE_TTL_MS   = 24 * 60 * 60 * 1000
 
 function getCached(userId) {
-  // Try localStorage first (persists across tabs), fallback to sessionStorage
   for (const storage of [localStorage, sessionStorage]) {
     try {
       const stored = storage.getItem(ROLE_CACHE_KEY)
       if (!stored) continue
       const parsed = JSON.parse(stored)
       if (parsed.userId !== userId) continue
-      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
-        storage.removeItem(ROLE_CACHE_KEY)
-        continue
-      }
-      // If cache was saved before storeId was added, invalidate it so we re-fetch
-      if (!('storeId' in parsed)) {
-        storage.removeItem(ROLE_CACHE_KEY)
-        continue
-      }
-      // Empleado con storeId null en cache — puede haberse asignado desde entonces
-      if (roleRequiresStore(parsed.role) && !parsed.storeId) {
-        storage.removeItem(ROLE_CACHE_KEY)
-        continue
-      }
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) { storage.removeItem(ROLE_CACHE_KEY); continue }
+      if (!('storeId' in parsed)) { storage.removeItem(ROLE_CACHE_KEY); continue }
+      if (roleRequiresStore(parsed.role) && !parsed.storeId) { storage.removeItem(ROLE_CACHE_KEY); continue }
       return parsed
     } catch {}
   }
@@ -44,10 +22,7 @@ function getCached(userId) {
 }
 
 function setCache(userId, role, displayName, storeId = null, storeName = null) {
-  const payload = JSON.stringify({
-    userId, role, displayName, storeId, storeName,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-  })
+  const payload = JSON.stringify({ userId, role, displayName, storeId, storeName, expiresAt: Date.now() + CACHE_TTL_MS })
   try { localStorage.setItem(ROLE_CACHE_KEY, payload) } catch {}
   try { sessionStorage.setItem(ROLE_CACHE_KEY, payload) } catch {}
 }
@@ -59,111 +34,67 @@ function clearCache() {
 
 function emailToName(email) {
   if (!email) return 'Usuario'
-  const local = email.split('@')[0]
-  // capitalize first segment before dot or number
-  const first = local.split(/[._0-9]/)[0]
+  const first = email.split('@')[0].split(/[._0-9]/)[0]
   return first.charAt(0).toUpperCase() + first.slice(1)
 }
 
-async function resolveProfile(userId, email) {
-  const cached = getCached(userId)
-  if (cached?.role) return {
-    role: cached.role,
-    displayName: cached.displayName || emailToName(email),
-    storeId: cached.storeId || null,
-    storeName: cached.storeName || null,
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('role, username, store_id, stores(name, type)')
-      .eq('id', userId)
-      .single()
-    if (!error && data?.role) {
-      const displayName = data.username?.trim() || emailToName(email)
-      const storeId = data.store_id || null
-      const storeName = data.stores?.name || null
-      setCache(userId, data.role, displayName, storeId, storeName)
-      return { role: data.role, displayName, storeId, storeName }
-    }
-  } catch {}
-
-  const role = isAdminEmail(email) ? 'admin' : getDefaultRoleForDemo()
-  const displayName = emailToName(email)
-  setCache(userId, role, displayName, null, null)
-  return { role, displayName, storeId: null, storeName: null }
+// El user que viene del backend ya trae role/store_id/store_name
+function buildProfile(apiUser) {
+  const role        = apiUser.role       || 'employee'
+  const displayName = apiUser.username   || emailToName(apiUser.email)
+  const storeId     = apiUser.store_id   || null
+  const storeName   = apiUser.store_name || null
+  setCache(apiUser.id, role, displayName, storeId, storeName)
+  return { role, displayName, storeId, storeName }
 }
 
 const AuthContext = createContext(null)
 
 export default function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [role, setRole] = useState(null)
+  const [user,        setUser]        = useState(null)
+  const [role,        setRole]        = useState(null)
   const [displayName, setDisplayName] = useState('')
-  const [storeId, setStoreId] = useState(null)
-  const [storeName, setStoreName] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [storeId,     setStoreId]     = useState(null)
+  const [storeName,   setStoreName]   = useState(null)
+  const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
     let mounted = true
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return
 
-        if (event === 'SIGNED_OUT') {
+        if (event === 'SIGNED_OUT' || !session?.user) {
           clearCache()
-          setUser(null)
-          setRole(null)
-          setDisplayName('')
-          setStoreId(null)
-          setStoreName(null)
+          setUser(null); setRole(null); setDisplayName(''); setStoreId(null); setStoreName(null)
           setLoading(false)
           return
         }
 
-        if (session?.user) {
-          // On token refresh, user is already in state — just refresh profile data
-          if (event === 'TOKEN_REFRESHED') {
-            const cached = getCached(session.user.id)
-            if (cached?.role) {
-              setRole(cached.role)
-              setDisplayName(cached.displayName || emailToName(session.user.email))
-              setStoreId(cached.storeId || null)
-              setStoreName(cached.storeName || null)
-              setLoading(false)
-              return
-            }
-          }
+        const apiUser = session.user
+        const cached  = getCached(apiUser.id)
 
-          // Resolver perfil ANTES de setUser para que cuando las queries
-          // se activen (enabled: !!user), storeId ya esté disponible
-          const profile = await resolveProfile(session.user.id, session.user.email)
-          if (mounted) {
-            setUser(session.user)
-            setRole(profile.role)
-            setDisplayName(profile.displayName)
-            setStoreId(profile.storeId)
-            setStoreName(profile.storeName)
-          }
+        if (cached?.role) {
+          setUser(apiUser)
+          setRole(cached.role)
+          setDisplayName(cached.displayName || emailToName(apiUser.email))
+          setStoreId(cached.storeId || null)
+          setStoreName(cached.storeName || null)
         } else {
-          clearCache()
-          setUser(null)
-          setRole(null)
-          setDisplayName('')
-          setStoreId(null)
-          setStoreName(null)
+          const profile = buildProfile(apiUser)
+          setUser(apiUser)
+          setRole(profile.role)
+          setDisplayName(profile.displayName)
+          setStoreId(profile.storeId)
+          setStoreName(profile.storeName)
         }
 
-        if (mounted) setLoading(false)
+        setLoading(false)
       }
     )
 
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
+    return () => { mounted = false; subscription.unsubscribe() }
   }, [])
 
   const login = async (email, password) => {
@@ -178,29 +109,15 @@ export default function AuthProvider({ children }) {
   }
 
   const value = useMemo(
-    () => ({
-      user,
-      role,
-      isAdmin: isAdminRole(role),
-      displayName,
-      storeId,
-      storeName,
-      loading,
-      login,
-      logout,
-    }),
+    () => ({ user, role, isAdmin: isAdminRole(role), displayName, storeId, storeName, loading, login, logout }),
     [user, role, displayName, storeId, storeName, loading]
   )
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within AuthProvider')
-  return context
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
 }

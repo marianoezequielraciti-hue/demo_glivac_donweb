@@ -1,15 +1,14 @@
 import { supabase } from '@/lib/supabase'
 
 async function getAccessToken() {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  const token = data.session?.access_token
+  const { data } = await supabase.auth.getSession()
+  const token    = data.session?.access_token
   if (!token) throw new Error('No hay sesión activa')
   return token
 }
 
 async function request(path, options = {}) {
-  const token = await getAccessToken()
+  const token    = await getAccessToken()
   const response = await fetch(path, {
     ...options,
     headers: {
@@ -18,29 +17,12 @@ async function request(path, options = {}) {
       ...(options.headers || {}),
     },
   })
-
   const payload = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error(payload.error || 'No se pudo completar la solicitud')
-  }
-
+  if (!response.ok) throw new Error(payload.error || 'No se pudo completar la solicitud')
   return payload
 }
 
-export function listAdminUsers() {
-  return request('/api/admin/users')
-}
-
-export function createAdminUser(payload) {
-  return request('/api/admin/users', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-}
-
-export function updateAdminUser(payload) {
-  return request('/api/admin/users', {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  })
-}
+export function listAdminUsers()         { return request('/api/auth/users') }
+export function createAdminUser(payload) { return request('/api/auth/users', { method: 'POST',   body: JSON.stringify(payload) }) }
+export function updateAdminUser(payload) { return request(`/api/auth/users/${payload.id}`, { method: 'PATCH', body: JSON.stringify(payload) }) }
+export function deleteAdminUser(id)      { return request(`/api/auth/users/${id}`,         { method: 'DELETE' }) }

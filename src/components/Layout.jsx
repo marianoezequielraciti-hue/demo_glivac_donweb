@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/ventas', label: 'Ventas', adminOnly: false },
   { to: '/gastos', label: 'Gastos', adminOnly: false },
   { to: '/fiados', label: 'Fiados', adminOnly: false },
+  { to: '/clientes', label: 'Clientes', adminOnly: false },
   { to: '/reportes', label: 'Reportes', adminOnly: true },
   { to: '/scanner', label: 'Scanner', adminOnly: false },
   { to: '/config', label: 'Config', adminOnly: true },

@@ -47,6 +47,20 @@ create table if not exists products (
   unique (barcode, store_id)
 );
 
+create table if not exists clients (
+  id         uuid primary key default gen_random_uuid(),
+  full_name  text not null,
+  phone      text,
+  email      text,
+  document_id text,
+  address    text,
+  notes      text default '',
+  active     boolean default true,
+  store_id   uuid references stores(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists sales (
   id             uuid primary key default gen_random_uuid(),
   sale_number    text not null,
@@ -57,6 +71,21 @@ create table if not exists sales (
   notes          text default '',
   store_id       uuid references stores(id),
   created_at     timestamptz default now()
+);
+
+create table if not exists budgets (
+  id                uuid primary key default gen_random_uuid(),
+  client_id         uuid not null references clients(id) on delete cascade,
+  budget_number     text not null,
+  status            text not null default 'draft' check (status in ('draft','sent','approved','rejected','expired')),
+  items             jsonb not null default '[]',
+  subtotal          numeric not null default 0,
+  notes             text default '',
+  valid_until       date,
+  posted_to_account boolean default false,
+  store_id          uuid references stores(id),
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now()
 );
 
 create table if not exists expenses (
@@ -70,6 +99,17 @@ create table if not exists expenses (
   purchase_id  uuid,
   store_id     uuid references stores(id),
   created_at   timestamptz default now()
+);
+
+create table if not exists client_account_entries (
+  id            uuid primary key default gen_random_uuid(),
+  client_id     uuid not null references clients(id) on delete cascade,
+  budget_id     uuid references budgets(id) on delete set null,
+  movement_type text not null check (movement_type in ('debit','credit')),
+  amount        numeric not null default 0,
+  description   text not null,
+  store_id      uuid references stores(id),
+  created_at    timestamptz default now()
 );
 
 create table if not exists purchases (
@@ -110,10 +150,18 @@ create table if not exists shift_logs (
 create index if not exists idx_products_active    on products(active);
 create index if not exists idx_products_store     on products(store_id);
 create index if not exists idx_products_barcode   on products(barcode);
+create index if not exists idx_clients_store      on clients(store_id);
+create index if not exists idx_clients_active     on clients(active);
 create index if not exists idx_sales_created      on sales(created_at desc);
 create index if not exists idx_sales_store        on sales(store_id);
+create index if not exists idx_budgets_client     on budgets(client_id);
+create index if not exists idx_budgets_store      on budgets(store_id);
+create index if not exists idx_budgets_created    on budgets(created_at desc);
 create index if not exists idx_expenses_date      on expenses(date desc);
 create index if not exists idx_expenses_store     on expenses(store_id);
+create index if not exists idx_client_account_client on client_account_entries(client_id);
+create index if not exists idx_client_account_store  on client_account_entries(store_id);
+create index if not exists idx_client_account_created on client_account_entries(created_at desc);
 create index if not exists idx_purchases_created  on purchases(created_at desc);
 create index if not exists idx_purchases_store    on purchases(store_id);
 
@@ -123,16 +171,22 @@ create index if not exists idx_purchases_store    on purchases(store_id);
 alter table stores        enable row level security;
 alter table user_profiles disable row level security;
 alter table products      enable row level security;
+alter table clients       enable row level security;
 alter table sales         enable row level security;
+alter table budgets       enable row level security;
 alter table expenses      enable row level security;
+alter table client_account_entries enable row level security;
 alter table purchases     enable row level security;
 alter table fiados        enable row level security;
 alter table shift_logs    enable row level security;
 
 create policy "stores_select"      on stores      for select using (auth.role() = 'authenticated');
 create policy "auth_all_products"  on products    for all    using (auth.role() = 'authenticated');
+create policy "auth_all_clients"   on clients     for all    using (auth.role() = 'authenticated');
 create policy "auth_all_sales"     on sales       for all    using (auth.role() = 'authenticated');
+create policy "auth_all_budgets"   on budgets     for all    using (auth.role() = 'authenticated');
 create policy "auth_all_expenses"  on expenses    for all    using (auth.role() = 'authenticated');
+create policy "auth_all_client_account" on client_account_entries for all using (auth.role() = 'authenticated');
 create policy "auth_all_purchases" on purchases   for all    using (auth.role() = 'authenticated');
 create policy "auth_all_fiados"    on fiados      for all    using (auth.role() = 'authenticated');
 create policy "auth_all_shiftlogs" on shift_logs  for all    using (auth.role() = 'authenticated');

@@ -140,7 +140,7 @@ export default function Clients() {
   const accountBalance = useMemo(() => accountEntries.reduce((sum, entry) => (
     sum + (entry.movement_type === 'debit' ? Number(entry.amount || 0) : -Number(entry.amount || 0))
   ), 0), [accountEntries])
-  const pendingBudgets = budgets.filter((budget) => ['draft', 'sent', 'approved'].includes(budget.status))
+  const pendingBudgets = budgets.filter((budget) => ['draft', 'sent', 'approved'].includes(budget.status) && !budget.posted_to_account)
   const budgetSubtotal = computeBudgetSubtotal(budgetForm.items)
 
   const resetClientForm = () => {
@@ -461,75 +461,73 @@ export default function Clients() {
                 </div>
               </div>
 
-              <div className="grid gap-6 2xl:grid-cols-2">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900">Cuenta corriente</h2>
-                    <span className="text-sm text-gray-500">{accountEntries.length} movimientos</span>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-[160px_140px_minmax(0,1fr)_auto]">
-                    <select value={entryForm.movement_type} onChange={(event) => setEntryForm((prev) => ({ ...prev, movement_type: event.target.value }))} className="h-11 px-3 border border-gray-200 rounded-xl text-sm">
-                      {MOVEMENT_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                    <input value={entryForm.amount} onChange={(event) => setEntryForm((prev) => ({ ...prev, amount: event.target.value }))} placeholder="Importe" type="number" min="0" step="0.01" className="h-11 px-3 border border-gray-200 rounded-xl text-sm" />
-                    <input value={entryForm.description} onChange={(event) => setEntryForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Descripción del movimiento" className="h-11 px-3 border border-gray-200 rounded-xl text-sm" />
-                    <button type="button" onClick={handleCreateEntry} disabled={accountEntryMutation.isPending} className="h-11 px-4 rounded-xl bg-zinc-900 text-white text-sm font-semibold disabled:opacity-50">
-                      Registrar
-                    </button>
-                  </div>
-                  <div className="space-y-2 max-h-[420px] overflow-y-auto">
-                    {accountEntries.length === 0 && <p className="text-sm text-gray-400">Todavía no hay movimientos para este cliente.</p>}
-                    {accountEntries.map((entry) => (
-                      <div key={entry.id} className="border border-gray-100 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900">{entry.description}</p>
-                          <p className="text-xs text-gray-500 mt-1">{formatDateTimeART(entry.created_at)}{entry.budgets?.budget_number ? ` · ${entry.budgets.budget_number}` : ''}</p>
-                        </div>
-                        <span className={`text-sm font-bold ${entry.movement_type === 'debit' ? 'text-amber-700' : 'text-emerald-700'}`}>
-                          {entry.movement_type === 'debit' ? '+' : '-'} {fmtMoney(entry.amount)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              {/* Cuenta corriente */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">Cuenta corriente</h2>
+                  <span className="text-sm text-gray-500">{accountEntries.length} movimientos</span>
                 </div>
-
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900">Nuevo presupuesto</h2>
-                    <span className="text-sm text-gray-500">{fmtMoney(budgetSubtotal)}</span>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_160px_auto]">
-                    <select value={productToAdd} onChange={(event) => setProductToAdd(event.target.value)} className="h-11 px-3 border border-gray-200 rounded-xl text-sm">
-                      <option value="">Agregar producto...</option>
-                      {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {fmtMoney(product.sale_price)}</option>)}
-                    </select>
-                    <input value={budgetForm.valid_until} onChange={(event) => setBudgetForm((prev) => ({ ...prev, valid_until: event.target.value }))} type="date" className="h-11 px-3 border border-gray-200 rounded-xl text-sm" />
-                    <select value={budgetForm.status} onChange={(event) => setBudgetForm((prev) => ({ ...prev, status: event.target.value }))} className="h-11 px-3 border border-gray-200 rounded-xl text-sm">
-                      {BUDGET_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-                    </select>
-                    <button type="button" onClick={handleAddBudgetItem} className="h-11 px-4 rounded-xl border border-gray-200 text-sm font-semibold">
-                      Agregar
-                    </button>
-                  </div>
-                  <textarea value={budgetForm.notes} onChange={(event) => setBudgetForm((prev) => ({ ...prev, notes: event.target.value }))} placeholder="Notas del presupuesto" className="w-full min-h-24 px-3 py-3 border border-gray-200 rounded-xl text-sm" />
-                  <div className="space-y-2">
-                    {budgetForm.items.length === 0 && <p className="text-sm text-gray-400">Todavía no agregaste productos al presupuesto.</p>}
-                    {budgetForm.items.map((item, index) => (
-                      <div key={`${item.product_id}-${index}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_100px_140px_140px_auto] items-center">
-                        <input value={item.product_name} onChange={(event) => handleBudgetItemChange(index, 'product_name', event.target.value)} className="h-11 px-3 border border-gray-200 rounded-xl text-sm" />
-                        <input value={item.quantity} onChange={(event) => handleBudgetItemChange(index, 'quantity', event.target.value)} type="number" min="1" step="1" className="h-11 px-3 border border-gray-200 rounded-xl text-sm" />
-                        <input value={item.unit_price} onChange={(event) => handleBudgetItemChange(index, 'unit_price', event.target.value)} type="number" min="0" step="0.01" className="h-11 px-3 border border-gray-200 rounded-xl text-sm" />
-                        <div className="h-11 px-3 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center text-sm font-semibold text-zinc-900">{fmtMoney(item.subtotal)}</div>
-                        <button type="button" onClick={() => handleRemoveBudgetItem(index)} className="h-11 px-4 rounded-xl border border-red-200 text-red-700 text-sm font-semibold">
-                          Quitar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={handleCreateBudget} disabled={budgetMutation.isPending} className="w-full h-11 rounded-xl bg-zinc-900 text-white text-sm font-semibold disabled:opacity-50">
-                    Guardar presupuesto
+                <div className="flex flex-wrap gap-2">
+                  <select value={entryForm.movement_type} onChange={(e) => setEntryForm((prev) => ({ ...prev, movement_type: e.target.value }))} className="h-10 px-3 border border-gray-200 rounded-xl text-sm">
+                    {MOVEMENT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <input value={entryForm.amount} onChange={(e) => setEntryForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder="Importe" type="number" min="0" className="h-10 w-36 px-3 border border-gray-200 rounded-xl text-sm" />
+                  <input value={entryForm.description} onChange={(e) => setEntryForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Descripción" className="h-10 flex-1 min-w-[160px] px-3 border border-gray-200 rounded-xl text-sm" />
+                  <button type="button" onClick={handleCreateEntry} disabled={accountEntryMutation.isPending} className="h-10 px-5 rounded-xl bg-zinc-900 text-white text-sm font-semibold disabled:opacity-50">
+                    Registrar
                   </button>
                 </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {accountEntries.length === 0 && <p className="text-sm text-gray-400">Todavía no hay movimientos para este cliente.</p>}
+                  {accountEntries.map((entry) => (
+                    <div key={entry.id} className="border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 text-sm">{entry.description}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{formatDateTimeART(entry.created_at)}{entry.budgets?.budget_number ? ` · ${entry.budgets.budget_number}` : ''}</p>
+                      </div>
+                      <span className={`text-sm font-bold shrink-0 ${entry.movement_type === 'debit' ? 'text-amber-700' : 'text-emerald-700'}`}>
+                        {entry.movement_type === 'debit' ? '+' : '-'} {fmtMoney(entry.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nuevo presupuesto */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">Nuevo presupuesto</h2>
+                  <span className="text-sm font-semibold text-gray-700">{fmtMoney(budgetSubtotal)}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select value={productToAdd} onChange={(e) => setProductToAdd(e.target.value)} className="h-10 flex-1 min-w-[180px] px-3 border border-gray-200 rounded-xl text-sm">
+                    <option value="">Agregar producto...</option>
+                    {products.map((p) => <option key={p.id} value={p.id}>{p.name} · {fmtMoney(p.sale_price)}</option>)}
+                  </select>
+                  <input value={budgetForm.valid_until} onChange={(e) => setBudgetForm((prev) => ({ ...prev, valid_until: e.target.value }))} type="date" className="h-10 px-3 border border-gray-200 rounded-xl text-sm" />
+                  <select value={budgetForm.status} onChange={(e) => setBudgetForm((prev) => ({ ...prev, status: e.target.value }))} className="h-10 px-3 border border-gray-200 rounded-xl text-sm">
+                    {BUDGET_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  <button type="button" onClick={handleAddBudgetItem} disabled={!productToAdd} className="h-10 px-5 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40">
+                    Agregar
+                  </button>
+                </div>
+                <textarea value={budgetForm.notes} onChange={(e) => setBudgetForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notas del presupuesto" rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none" />
+                <div className="space-y-2">
+                  {budgetForm.items.length === 0 && <p className="text-sm text-gray-400">Todavía no agregaste productos al presupuesto.</p>}
+                  {budgetForm.items.map((item, index) => (
+                    <div key={`${item.product_id}-${index}`} className="flex flex-wrap gap-2 items-center">
+                      <input value={item.product_name} onChange={(e) => handleBudgetItemChange(index, 'product_name', e.target.value)} className="h-9 flex-1 min-w-[120px] px-3 border border-gray-200 rounded-lg text-sm" />
+                      <input value={item.quantity} onChange={(e) => handleBudgetItemChange(index, 'quantity', e.target.value)} type="number" min="1" placeholder="Cant." className="h-9 w-20 px-3 border border-gray-200 rounded-lg text-sm" />
+                      <input value={item.unit_price} onChange={(e) => handleBudgetItemChange(index, 'unit_price', e.target.value)} type="number" min="0" placeholder="Precio" className="h-9 w-28 px-3 border border-gray-200 rounded-lg text-sm" />
+                      <span className="h-9 px-3 rounded-lg bg-zinc-50 border border-zinc-100 flex items-center text-sm font-semibold text-zinc-900 shrink-0">{fmtMoney(item.subtotal)}</span>
+                      <button type="button" onClick={() => handleRemoveBudgetItem(index)} className="h-9 px-3 rounded-lg border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50">✕</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={handleCreateBudget} disabled={budgetMutation.isPending || !budgetForm.items.length} className="w-full h-11 rounded-xl bg-zinc-900 text-white text-sm font-semibold disabled:opacity-50">
+                  Guardar presupuesto
+                </button>
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">

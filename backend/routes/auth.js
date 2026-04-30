@@ -141,4 +141,29 @@ router.delete('/users/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/auth/setup-first-admin
+// Solo funciona si no existe ningún usuario en la base. Se auto-deshabilita.
+router.post('/setup-first-admin', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+
+  try {
+    const [[{ count }]] = await pool.query('SELECT COUNT(*) as count FROM users');
+    if (count > 0) return res.status(403).json({ error: 'Ya existen usuarios. Endpoint deshabilitado.' });
+
+    const id   = uuid();
+    const hash = await bcrypt.hash(password, 12);
+    await pool.query('INSERT INTO users (id, email, encrypted_password) VALUES (?, ?, ?)',
+      [id, email.toLowerCase(), hash]);
+    await pool.query('INSERT INTO user_profiles (id, email, role) VALUES (?, ?, ?)',
+      [id, email.toLowerCase(), 'admin']);
+
+    const token = signToken({ sub: id, email: email.toLowerCase(), role: 'admin' });
+    res.status(201).json({ ok: true, message: 'Admin creado correctamente', token });
+  } catch (err) {
+    console.error('setup-first-admin error', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

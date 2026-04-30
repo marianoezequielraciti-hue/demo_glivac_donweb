@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — Tabla FIADOS
+-- GLIVAC — Tabla FIADOS
 -- Ejecutar en Supabase > SQL Editor
 -- ============================================================
 

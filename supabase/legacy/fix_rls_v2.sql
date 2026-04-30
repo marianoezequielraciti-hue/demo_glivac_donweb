@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — FIX COMPLETO v2
+-- GLIVAC — FIX COMPLETO v2
 -- Ejecutar COMPLETO en Supabase > SQL Editor
 -- BORRA TODAS LAS POLÍTICAS EXISTENTES antes de recrearlas
 -- ============================================================

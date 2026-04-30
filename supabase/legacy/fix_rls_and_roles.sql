@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — Script de corrección completa
+-- GLIVAC — Script de corrección completa
 -- Ejecutar en Supabase > SQL Editor (todo junto de una vez)
 -- ============================================================
 

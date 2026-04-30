@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — Multi-negocio: Fiambrería + Kiosco
+-- GLIVAC — Multi-negocio (script legacy)
 -- Ejecutar en Supabase > SQL Editor
 -- ============================================================
 

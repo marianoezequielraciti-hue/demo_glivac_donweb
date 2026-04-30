@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — Aislamiento por negocio (store isolation)
+-- GLIVAC — Aislamiento por negocio (store isolation)
 -- Ejecutar en Supabase > SQL Editor DESPUÉS de fix_rls_final.sql
 -- ============================================================
 -- Resultado:

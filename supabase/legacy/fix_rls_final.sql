@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — FIX RLS DEFINITIVO
+-- GLIVAC — FIX RLS DEFINITIVO
 -- Ejecutar en Supabase > SQL Editor
 -- Elimina TODAS las políticas existentes y las recrea limpiamente
 -- ============================================================

@@ -297,7 +297,7 @@ export default function Reports() {
         .map(p => `- ${p.name}: compra ARS ${p.avg_purchase_price}${p.sale_price ? `, venta ARS ${p.sale_price}` : ''}`)
         .join('\n')
 
-      const prompt = `Sos un experto en compras mayoristas de Argentina para fiambrerías y kioscos. Analizá los siguientes productos con sus precios de compra (en pesos argentinos ARS):
+      const prompt = `Sos un experto en compras mayoristas de Argentina para comercios minoristas. Analizá los siguientes productos con sus precios de compra (en pesos argentinos ARS):
 
 ${productList}
 
@@ -377,7 +377,7 @@ Incluí TODOS los productos de la lista.`
         )
         .join('\n')
 
-      const prompt = `Sos un experto en precios para fiambrerías y kioscos de Argentina. Analizá los siguientes productos con sus precios de venta actuales (en pesos argentinos ARS):
+      const prompt = `Sos un experto en precios para comercios minoristas de Argentina. Analizá los siguientes productos con sus precios de venta actuales (en pesos argentinos ARS):
 
 ${productList}
 
@@ -431,7 +431,7 @@ Incluí TODOS los productos. Sé directo y específico.`
     setLoadingInsights(true); setInsights(null)
     try {
       const periodLabel = periodMode === 'week' ? 'esta semana' : `${MONTHS[customMonth]} ${customYear}`
-      const prompt = `Sos un asesor financiero y de negocios experto en comercios minoristas de Argentina (fiambrerías y kioscos). Todos los valores son en pesos argentinos (ARS).
+      const prompt = `Sos un asesor financiero y de negocios experto en comercios minoristas de Argentina. Todos los valores son en pesos argentinos (ARS).
 
 Datos del período "${periodLabel}":
 - Ingresos: ARS ${Math.round(totalRevenue)} (${revDelta >= 0 ? '+' : ''}${revDelta}% vs período anterior, ${yearDelta >= 0 ? '+' : ''}${yearDelta}% vs mismo mes año pasado)

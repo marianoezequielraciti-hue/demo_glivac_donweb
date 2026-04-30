@@ -1,5 +1,5 @@
 -- ============================================================
--- FIAMBRERÍAS VALE — Tabla open_shifts
+-- GLIVAC — Tabla open_shifts
 -- Rastrear turnos abiertos en tiempo real (cross-device)
 -- Ejecutar en Supabase > SQL Editor
 -- ============================================================

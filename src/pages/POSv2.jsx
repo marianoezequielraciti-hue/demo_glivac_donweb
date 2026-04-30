@@ -35,6 +35,8 @@ export default function POSv2() {
   const [budgetClientSearch, setBudgetClientSearch] = useState('')
   const [budgetClientId, setBudgetClientId] = useState(null)
   const [budgetClientName, setBudgetClientName] = useState('')
+  const [fiadoClientSearch, setFiadoClientSearch] = useState('')
+  const [fiadoClientSelected, setFiadoClientSelected] = useState(false)
   const fiadoInputRef = useRef(null)
   const [liveTime, setLiveTime] = useState(nowART())
   const [isNocturnalSurcharge, setIsNocturnalSurcharge] = useState(false)
@@ -60,10 +62,12 @@ export default function POSv2() {
   })
 
   const { data: sales = [] } = useQuery({
-    queryKey: ['sales', effectiveStoreId],
+    queryKey: ['sales', effectiveStoreId, turno?.inicio],
     queryFn: async () => {
-      let q = supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(500)
+      let q = supabase.from('sales').select('*').order('created_at', { ascending: false })
       if (effectiveStoreId) q = q.eq('store_id', effectiveStoreId)
+      if (turno?.inicio) q = q.gte('created_at', turno.inicio)
+      else q = q.limit(100)
       const { data } = await q
       return data || []
     },
@@ -285,7 +289,10 @@ export default function POSv2() {
           notes: `Venta ${sale.sale_number}`,
           ...(turno.storeId ? { store_id: turno.storeId } : {}),
         })
-        if (fiadoError) throw new Error(`Venta guardada pero falló el registro del fiado: ${fiadoError.message}`)
+        if (fiadoError) {
+          await supabase.from('sales').delete().eq('id', sale.id)
+          throw new Error(`No se pudo registrar el fiado: ${fiadoError.message}`)
+        }
       }
 
       for (const item of cartItems) {
@@ -304,6 +311,8 @@ export default function POSv2() {
       setCart([])
       setPaymentMethod('efectivo')
       setFiadoCustomer('')
+      setFiadoClientSearch('')
+      setFiadoClientSelected(false)
       setShowFiadoModal(false)
       setPendingSale(null)
       setShowMobileCart(false)
@@ -326,13 +335,20 @@ export default function POSv2() {
   }
 
   const handleConfirmFiado = () => {
-    if (!fiadoCustomer.trim()) { toast.error('Escribí el nombre del cliente'); return }
+    const name = fiadoCustomer.trim()
+    if (!name) { toast.error('Escribí el nombre del cliente'); return }
     completeSaleMutation.mutate({
       cartItems: pendingSale.cartItems,
       total: pendingSale.total,
       method: 'fiado',
-      customerName: fiadoCustomer.trim(),
+      customerName: name,
     })
+  }
+
+  const handleFiadoClientPick = (client) => {
+    setFiadoCustomer(client.full_name)
+    setFiadoClientSearch(client.full_name)
+    setFiadoClientSelected(true)
   }
 
   const handleApplyPromotion = (promo) => {
@@ -404,11 +420,14 @@ export default function POSv2() {
 
   const handleConfirmCierre = async () => {
     if (!realCashCount) { toast.error('Ingresá el conteo real'); return }
+    const fiadoSales = turnoSales.filter(s => s.payment_method === 'fiado')
     const summary = {
       salesCount: turnoSales.length,
       total: turnoSales.reduce((sum, s) => sum + (s.total || 0), 0),
       efectivo: efectivoTotal,
       digital: otherPayments,
+      fiadosCount: fiadoSales.length,
+      fiadosTotal: fiadoSales.reduce((sum, s) => sum + (s.total || 0), 0),
       expectedCash,
       realCash: realCashNumber,
       diff: cashDiff,
@@ -584,6 +603,8 @@ export default function POSv2() {
             { label: 'Total recaudado', value: turnoSales.reduce((s, x) => s + (x.total || 0), 0), isMoney: true },
             { label: 'Efectivo', value: efectivoTotal, isMoney: true },
             { label: 'Digital', value: otherPayments, isMoney: true },
+            { label: 'Fiados (pendientes)', value: turnoSales.filter(s => s.payment_method === 'fiado').length, isMoney: false },
+            { label: 'Total fiado', value: turnoSales.filter(s => s.payment_method === 'fiado').reduce((s, x) => s + (x.total || 0), 0), isMoney: true },
           ].map(({ label, value, isMoney }) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-xs text-gray-500">{label}</p>
@@ -667,6 +688,8 @@ export default function POSv2() {
             { label: 'Total', value: closingSummary.total, isMoney: true },
             { label: 'Efectivo', value: closingSummary.efectivo, isMoney: true },
             { label: 'Digital', value: closingSummary.digital, isMoney: true },
+            { label: 'Fiados (pendientes)', value: closingSummary.fiadosCount, isMoney: false },
+            { label: 'Total fiado', value: closingSummary.fiadosTotal, isMoney: true },
           ].map(({ label, value, isMoney }) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-xs text-gray-500">{label}</p>
@@ -739,8 +762,8 @@ export default function POSv2() {
                 value={barcodeInput || searchQuery}
                 onChange={e => {
                   const v = e.target.value
-                  // if only digits assume barcode mode
-                  if (/^\d+$/.test(v)) {
+                  // barcode: only word chars and no spaces (handles alphanumeric barcodes)
+                  if (/^[A-Za-z0-9_\-]+$/.test(v) && !v.includes(' ')) {
                     setBarcodeInput(v)
                     setSearchQuery('')
                   } else {
@@ -1064,24 +1087,51 @@ export default function POSv2() {
 
     {/* Fiado modal */}
     {showFiadoModal && (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-widest">Venta a fiado</p>
             <h3 className="text-xl font-bold mt-1">¿A nombre de quién?</h3>
             <p className="text-sm text-gray-500 mt-1">Total: <span className="font-semibold text-gray-900">{fmtMoney(pendingSale?.total || 0)}</span></p>
           </div>
-          <input
-            ref={fiadoInputRef}
-            value={fiadoCustomer}
-            onChange={e => setFiadoCustomer(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleConfirmFiado()}
-            placeholder="Nombre del cliente"
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-zinc-900/20 focus:border-zinc-900"
-          />
+          {/* Client autocomplete — picks from registered clients or free text */}
+          <div className="space-y-2">
+            <input
+              ref={fiadoInputRef}
+              value={fiadoClientSelected ? fiadoCustomer : fiadoClientSearch}
+              onChange={e => {
+                const v = e.target.value
+                setFiadoClientSearch(v)
+                setFiadoCustomer(v)
+                setFiadoClientSelected(false)
+              }}
+              onKeyDown={e => e.key === 'Enter' && handleConfirmFiado()}
+              placeholder="Buscar cliente o escribir nombre..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-zinc-900/20 focus:border-zinc-900"
+            />
+            {!fiadoClientSelected && fiadoClientSearch.length > 0 && (
+              <div className="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
+                {clients
+                  .filter(c => c.full_name.toLowerCase().includes(fiadoClientSearch.toLowerCase()))
+                  .slice(0, 6)
+                  .map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleFiadoClientPick(c)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-800"
+                    >
+                      {c.full_name}
+                    </button>
+                  ))}
+                {clients.filter(c => c.full_name.toLowerCase().includes(fiadoClientSearch.toLowerCase())).length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-2">Sin clientes registrados con ese nombre</p>
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowFiadoModal(false); setPendingSale(null); setFiadoCustomer('') }}
+              onClick={() => { setShowFiadoModal(false); setPendingSale(null); setFiadoCustomer(''); setFiadoClientSearch(''); setFiadoClientSelected(false) }}
               className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Cancelar

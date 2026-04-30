@@ -44,8 +44,8 @@ export default function App() {
               <Route path="ventas" element={<Sales />} />
               <Route path="fiados" element={<Fiados />} />
               <Route path="clientes" element={<Clients />} />
+              <Route path="reportes" element={<Reports />} />
               <Route element={<AdminRoute />}>
-                <Route path="reportes" element={<Reports />} />
                 <Route path="config" element={<Settings />} />
               </Route>
             </Route>

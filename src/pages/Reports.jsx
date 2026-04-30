@@ -161,6 +161,16 @@ export default function Reports() {
     enabled: !!user,
   })
 
+  const { data: budgets = [] } = useQuery({
+    queryKey: ['budgets_report', activeStoreId],
+    queryFn: async () => {
+      let q = supabase.from('budgets').select('*, clients(full_name)').order('created_at', { ascending: false }).limit(1000)
+      if (activeStoreId) q = q.eq('store_id', activeStoreId)
+      const { data } = await q; return data || []
+    },
+    enabled: !!user,
+  })
+
   const { data: orphanCounts } = useQuery({
     queryKey: ['orphan_counts'],
     queryFn: async () => {
@@ -247,6 +257,32 @@ export default function Reports() {
     })()
     return shiftLogs.filter(s => { const d = new Date(s.created_at); return d >= periodStart && d <= periodEnd })
   }, [shiftLogs, periodConfig])
+
+  const budgetStats = useMemo(() => {
+    const total = budgets.length
+    const concretados = budgets.filter(b => b.status === 'approved' || b.posted_to_account)
+    const pendientes = budgets.filter(b => !b.posted_to_account && b.status !== 'approved' && b.status !== 'rejected' && b.status !== 'expired')
+    const totalMonto = budgets.reduce((s, b) => s + (b.subtotal || 0), 0)
+    const montoConcretado = concretados.reduce((s, b) => s + (b.subtotal || 0), 0)
+    const conversionRate = total > 0 ? Math.round(concretados.length / total * 100) : 0
+
+    const byClient = new Map()
+    budgets.forEach(b => {
+      const name = b.clients?.full_name || 'Sin nombre'
+      if (!byClient.has(name)) byClient.set(name, { name, total: 0, concretados: 0, monto: 0, montoConcretado: 0 })
+      const entry = byClient.get(name)
+      entry.total++
+      entry.monto += b.subtotal || 0
+      if (b.status === 'approved' || b.posted_to_account) {
+        entry.concretados++
+        entry.montoConcretado += b.subtotal || 0
+      }
+    })
+
+    const clientList = [...byClient.values()].sort((a, b) => b.monto - a.monto)
+
+    return { total, concretados: concretados.length, pendientes: pendientes.length, totalMonto, montoConcretado, conversionRate, clientList }
+  }, [budgets])
 
   const topRotation = rotacion[0]
   const criticalProduct = criticalStock[0]
@@ -1180,6 +1216,70 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
           </AnimatePresence>
         </Widget>
       </div>
+
+      {/* ── PRESUPUESTOS ────────────────────────────────────────── */}
+      {budgetStats.total > 0 && (
+        <Widget className="p-5">
+          <SectionLabel>Presupuestos generados</SectionLabel>
+
+          {/* KPIs fila */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <div className="bg-black/3 rounded-xl p-4">
+              <p className="text-xs text-[#86868b] mb-1">Total generados</p>
+              <p className="text-2xl font-semibold text-[#1d1d1f]">{budgetStats.total}</p>
+              <p className="text-xs text-[#86868b] mt-1">{fmtMoney(budgetStats.totalMonto)}</p>
+            </div>
+            <div className="bg-[#f0fff4] rounded-xl p-4">
+              <p className="text-xs text-[#34c759] font-medium mb-1">Concretados</p>
+              <p className="text-2xl font-semibold text-[#34c759]">{budgetStats.concretados}</p>
+              <p className="text-xs text-[#86868b] mt-1">{fmtMoney(budgetStats.montoConcretado)}</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-4">
+              <p className="text-xs text-amber-600 font-medium mb-1">Pendientes</p>
+              <p className="text-2xl font-semibold text-amber-600">{budgetStats.pendientes}</p>
+              <p className="text-xs text-[#86868b] mt-1">sin confirmar</p>
+            </div>
+            <div className="bg-[#f0f7ff] rounded-xl p-4">
+              <p className="text-xs text-[#007AFF] font-medium mb-1">Tasa de conversión</p>
+              <p className="text-2xl font-semibold text-[#007AFF]">{budgetStats.conversionRate}%</p>
+              <p className="text-xs text-[#86868b] mt-1">presupuestos → ventas</p>
+            </div>
+          </div>
+
+          {/* Tabla por cliente */}
+          <p className="text-xs font-semibold text-[#86868b] uppercase tracking-[0.2em] mb-3">Por cliente</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-[#86868b] border-b border-black/5">
+                  {['Cliente', 'Presupuestos', 'Concretados', 'Conversión', 'Monto total', 'Monto concretado'].map(h => (
+                    <th key={h} className={`pb-2 font-medium ${h === 'Cliente' ? 'text-left' : 'text-right'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/5">
+                {budgetStats.clientList.map(c => {
+                  const rate = c.total > 0 ? Math.round(c.concretados / c.total * 100) : 0
+                  return (
+                    <tr key={c.name}>
+                      <td className="py-2.5 font-medium text-[#1d1d1f]">{c.name}</td>
+                      <td className="py-2.5 text-right text-[#86868b]">{c.total}</td>
+                      <td className="py-2.5 text-right font-semibold text-[#34c759]">{c.concretados}</td>
+                      <td className="py-2.5 text-right">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${rate >= 50 ? 'bg-[#f0fff4] text-[#34c759]' : rate > 0 ? 'bg-amber-50 text-amber-600' : 'bg-black/5 text-[#86868b]'}`}>
+                          {rate}%
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right text-[#1d1d1f]">{fmtMoney(c.monto)}</td>
+                      <td className="py-2.5 text-right font-semibold text-[#34c759]">{fmtMoney(c.montoConcretado)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Widget>
+      )}
 
       {/* ── STOCK CRÍTICO (al final) ─────────────────────────────── */}
       {criticalStock.length > 0 && (

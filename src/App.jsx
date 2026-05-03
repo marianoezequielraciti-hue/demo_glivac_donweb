@@ -15,6 +15,7 @@ import Settings from '@/pages/Settings'
 import Fiados from '@/pages/Fiados'
 import Clients from '@/pages/Clients'
 import { useAuth } from '@/hooks/useAuth'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 1000 * 60 * 2, retry: 1 } }
@@ -27,6 +28,11 @@ function AdminRoute() {
   return <Outlet />
 }
 
+// Envuelve cada page en su propio boundary para que un crash no tire toda la app
+function Wrap({ children }) {
+  return <ErrorBoundary>{children}</ErrorBoundary>
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -35,18 +41,18 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route index element={<Navigate to="/pos" replace />} />
-              <Route path="pos" element={<POSv2 />} />
-              <Route path="productos" element={<Products />} />
-              <Route path="compras" element={<Purchases />} />
-              <Route path="scanner" element={<InvoiceScanner />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="gastos" element={<Expenses />} />
-              <Route path="ventas" element={<Sales />} />
-              <Route path="fiados" element={<Fiados />} />
-              <Route path="clientes" element={<Clients />} />
-              <Route path="reportes" element={<Reports />} />
+              <Route path="pos"       element={<Wrap><POSv2 /></Wrap>} />
+              <Route path="productos" element={<Wrap><Products /></Wrap>} />
+              <Route path="compras"   element={<Wrap><Purchases /></Wrap>} />
+              <Route path="scanner"   element={<Wrap><InvoiceScanner /></Wrap>} />
+              <Route path="dashboard" element={<Wrap><Dashboard /></Wrap>} />
+              <Route path="gastos"    element={<Wrap><Expenses /></Wrap>} />
+              <Route path="ventas"    element={<Wrap><Sales /></Wrap>} />
+              <Route path="fiados"    element={<Wrap><Fiados /></Wrap>} />
+              <Route path="clientes"  element={<Wrap><Clients /></Wrap>} />
+              <Route path="reportes"  element={<Wrap><Reports /></Wrap>} />
               <Route element={<AdminRoute />}>
-                <Route path="config" element={<Settings />} />
+                <Route path="config" element={<Wrap><Settings /></Wrap>} />
               </Route>
             </Route>
           </Route>

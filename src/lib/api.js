@@ -113,14 +113,14 @@ export const supabase = {
   auth: {
     onAuthStateChange(callback) {
       _listeners.push(callback);
-      // Notificar estado actual inmediatamente (async para no bloquear render)
-      setTimeout(() => {
+      // Notificar estado actual en el siguiente microtask (más rápido que setTimeout)
+      Promise.resolve().then(() => {
         if (_token && _user) {
           callback('SIGNED_IN', { user: _user });
         } else {
           callback('SIGNED_OUT', null);
         }
-      }, 0);
+      });
 
       return {
         data: {

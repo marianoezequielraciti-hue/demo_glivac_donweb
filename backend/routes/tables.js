@@ -20,6 +20,22 @@ const JSON_COLS = {
 
 function jsonCols(table) { return JSON_COLS[table] || []; }
 
+// mysql2 devuelve columnas JSON como string — parsear explícitamente
+function parseJsonCols(table, row) {
+  if (!row) return row;
+  for (const col of jsonCols(table)) {
+    if (typeof row[col] === 'string') {
+      try { row[col] = JSON.parse(row[col]); } catch {}
+    }
+  }
+  return row;
+}
+
+function parseJsonRows(table, rows) {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map(r => parseJsonCols(table, r));
+}
+
 // ── Query param → SQL WHERE builder ───────────────────────────────────────
 // Supported suffixes: __eq (default), __gte, __lte, __gt, __lt, __in, __ilike, __is, __neq
 function buildWhere(query, params = []) {
@@ -93,7 +109,7 @@ router.get('/:table', authMiddleware, async (req, res) => {
 
   try {
     const [rows] = await pool.query(`SELECT * FROM \`${table}\`` + where + order + limit + offset, params);
-    res.json(rows);
+    res.json(parseJsonRows(table, rows));
   } catch (err) {
     console.error(`GET ${table}`, err.message);
     res.status(500).json({ error: err.message });
@@ -131,10 +147,10 @@ router.post('/:table', authMiddleware, async (req, res) => {
       await pool.query(sql, vals);
     }
 
-    // Devolver filas insertadas solo si es inserción simple (no batch masivo)
+    // Devolver fila insertada solo si es inserción simple (no batch masivo)
     if (ids.length === 1) {
       const [[fresh]] = await pool.query(`SELECT * FROM \`${table}\` WHERE id = ?`, [ids[0]]);
-      return res.status(201).json(fresh || { id: ids[0] });
+      return res.status(201).json(parseJsonCols(table, fresh) || { id: ids[0] });
     }
 
     res.status(201).json({ inserted: ids.length });

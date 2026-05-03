@@ -168,6 +168,9 @@ export default function Products() {
         min_stock: product.min_stock || 0,
         purchase_price: product.purchase_price || 0,
         sale_price: product.sale_price || 0,
+        markup_pct: product.purchase_price && product.sale_price
+          ? +((product.sale_price / product.purchase_price - 1) * 100).toFixed(1)
+          : '',
         expiration_date: product.expiration_date || '',
         active: product.active ?? true,
         allow_negative_stock: product.allow_negative_stock ?? true,
@@ -204,8 +207,9 @@ export default function Products() {
       return
     }
 
+    const { markup_pct: _, ...formData } = form
     const payload = {
-      ...form,
+      ...formData,
       barcode: barcodeNorm,
       current_stock: parseFloat(form.current_stock) || 0,
       min_stock: parseFloat(form.min_stock) || 0,
@@ -541,12 +545,66 @@ export default function Products() {
             <div className="grid grid-cols-2 gap-3">
               <label className="space-y-1 text-xs text-gray-500">
                 Precio compra
-                <input type="number" value={form.purchase_price} onChange={e => setForm(prev => ({ ...prev, purchase_price: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2" />
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.purchase_price}
+                  onChange={e => {
+                    const cost = parseFloat(e.target.value) || 0
+                    setForm(prev => {
+                      const markup = parseFloat(prev.markup_pct) || 0
+                      const newSale = markup > 0 ? +(cost * (1 + markup / 100)).toFixed(2) : prev.sale_price
+                      return { ...prev, purchase_price: e.target.value, sale_price: markup > 0 ? newSale : prev.sale_price }
+                    })
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2"
+                />
               </label>
               <label className="space-y-1 text-xs text-gray-500">
-                Precio venta
-                <input type="number" value={form.sale_price} onChange={e => setForm(prev => ({ ...prev, sale_price: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2" required />
+                % Margen sobre costo
+                <input
+                  type="number" min="0" max="999" step="0.1" placeholder="ej: 40"
+                  value={form.markup_pct ?? ''}
+                  onChange={e => {
+                    const pct = parseFloat(e.target.value) || 0
+                    setForm(prev => {
+                      const cost = parseFloat(prev.purchase_price) || 0
+                      const newSale = cost > 0 && pct > 0 ? +(cost * (1 + pct / 100)).toFixed(2) : prev.sale_price
+                      return { ...prev, markup_pct: e.target.value, sale_price: newSale }
+                    })
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2"
+                />
               </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="space-y-1 text-xs text-gray-500">
+                Precio venta
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.sale_price}
+                  onChange={e => {
+                    const sale = parseFloat(e.target.value) || 0
+                    setForm(prev => {
+                      const cost = parseFloat(prev.purchase_price) || 0
+                      const pct = cost > 0 && sale > cost ? +((sale / cost - 1) * 100).toFixed(1) : prev.markup_pct
+                      return { ...prev, sale_price: e.target.value, markup_pct: pct }
+                    })
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2"
+                  required
+                />
+              </label>
+              <div className="space-y-1 text-xs text-gray-500">
+                Margen calculado
+                <div className="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-emerald-700">
+                  {(() => {
+                    const cost = parseFloat(form.purchase_price) || 0
+                    const sale = parseFloat(form.sale_price) || 0
+                    if (!cost || !sale || sale <= cost) return '—'
+                    return `+${((sale / cost - 1) * 100).toFixed(1)}% sobre costo`
+                  })()}
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="space-y-1 text-xs text-gray-500">

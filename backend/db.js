@@ -11,10 +11,10 @@ const pool = mysql.createPool({
   timezone:           'Z',
   decimalNumbers:     true,
   typeCast(field, next) {
-    // Devolver booleans como boolean
+    // Booleans
     if (field.type === 'TINY' && field.length === 1) return field.string() === '1';
-    // Deserializar JSON automáticamente
-    if (field.type === 'JSON') {
+    // JSON columns — mysql2 usa código numérico 245, no el string 'JSON'
+    if (field.type === 245) {
       const val = field.string();
       try { return val ? JSON.parse(val) : null; } catch { return val; }
     }

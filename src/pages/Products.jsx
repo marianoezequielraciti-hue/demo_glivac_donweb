@@ -47,8 +47,9 @@ export default function Products() {
     queryFn: async () => {
       let q = supabase.from('products').select('*').order('name')
       if (effectiveStoreId) q = q.eq('store_id', effectiveStoreId)
-      const { data } = await q
-      return data || []
+      const result = await q
+      console.log('[Products] query result:', result)
+      return result.data || []
     },
     staleTime: 1000 * 60,
     enabled: !!user,

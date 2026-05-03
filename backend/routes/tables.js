@@ -52,7 +52,8 @@ function buildWhere(query, params = []) {
     // Sanitize column name (only word chars and dots)
     if (!/^[\w.]+$/.test(col)) continue;
 
-    const val = rawVal === 'null' ? null : rawVal;
+    // Normalizar booleanos: 'true'→'1', 'false'→'0' para que MySQL compare correctamente contra TINYINT(1)
+    const val = rawVal === 'null' ? null : rawVal === 'true' ? '1' : rawVal === 'false' ? '0' : rawVal;
 
     switch (op) {
       case 'eq':    conditions.push(`\`${col}\` = ?`);                params.push(val); break;
@@ -95,6 +96,28 @@ function prepareRow(table, row) {
   }
   return out;
 }
+
+// ── POST /api/products/adjust-stock ───────────────────────────────────────
+// Decremento atómico: evita usar stock cacheado del frontend
+// Body: [{ product_id, qty }]  (qty = cantidad vendida, siempre positivo)
+router.post('/products/adjust-stock', authMiddleware, async (req, res) => {
+  const items = Array.isArray(req.body) ? req.body : [req.body];
+  if (!items.length) return res.status(400).json({ error: 'Se requiere al menos un ítem' });
+
+  try {
+    for (const { product_id, qty } of items) {
+      if (!product_id || !qty) continue;
+      await pool.query(
+        'UPDATE `products` SET current_stock = current_stock - ? WHERE id = ?',
+        [Number(qty), product_id]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('adjust-stock', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── GET /api/:table ────────────────────────────────────────────────────────
 router.get('/:table', authMiddleware, async (req, res) => {

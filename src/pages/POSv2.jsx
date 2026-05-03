@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { fetchApi } from '@/lib/api'
 import { formatDateTimeART, fmtMoney, nowART } from '@/components/argentina'
 import { Loader2, Printer, Plus, Minus, X, ShoppingCart, Search, Clock } from 'lucide-react'
 import { loadPromotions } from '@/lib/promotions'
@@ -295,12 +296,13 @@ export default function POSv2() {
         }
       }
 
+      // Decremento atómico por producto (agrupa por id para evitar dobles updates)
+      const deltaMap = {}
       for (const item of cartItems) {
-        const prod = products.find(p => p.id === item.product_id)
-        if (prod) {
-          await supabase.from('products').update({ current_stock: prod.current_stock - item.quantity }).eq('id', prod.id)
-        }
+        if (item.product_id) deltaMap[item.product_id] = (deltaMap[item.product_id] || 0) + item.quantity
       }
+      const stockItems = Object.entries(deltaMap).map(([product_id, qty]) => ({ product_id, qty }))
+      if (stockItems.length) await fetchApi('/api/products/adjust-stock', { body: stockItems })
       return sale
     },
     onSuccess: (sale) => {

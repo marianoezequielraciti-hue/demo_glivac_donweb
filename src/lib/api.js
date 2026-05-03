@@ -104,6 +104,18 @@ class QueryBuilder {
   }
 }
 
+// ── Helper para llamadas directas a rutas custom ──────────────────────────
+export async function fetchApi(path, { method = 'POST', body } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: getHeaders(),
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Error en la solicitud');
+  return json;
+}
+
 // ── Cliente principal (interfaz compatible con supabase-js) ───────────────
 export const supabase = {
   from(table) {

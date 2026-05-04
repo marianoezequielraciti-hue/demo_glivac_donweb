@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatDateTimeART, fmtMoney } from '@/components/argentina'
@@ -19,6 +20,7 @@ const PAY_METHODS = [
 
 export default function Fiados() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { user, isAdmin, storeId } = useAuth()
   const { stores, selectedStoreId, setSelectedStoreId } = useStoreFilter()
   const effectiveStoreId = selectedStoreId || (isAdmin ? null : storeId)
@@ -75,6 +77,7 @@ export default function Fiados() {
     return [...map.values()]
       .map(items => ({
         name: items[0].customer_name,
+        client_id: items[0].client_id || null,
         fiados: [...items].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
         total: items.reduce((s, f) => s + (f.amount || 0), 0),
       }))
@@ -216,6 +219,14 @@ export default function Fiados() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <p className="text-lg font-bold text-amber-700">{fmtMoney(group.total)}</p>
+                    {group.client_id && (
+                      <button
+                        onClick={() => navigate(`/clientes?client_id=${group.client_id}`)}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-colors"
+                      >
+                        Ver cliente
+                      </button>
+                    )}
                     <button
                       onClick={() => openGroupModal(group, true)}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors"

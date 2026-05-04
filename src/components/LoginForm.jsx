@@ -26,12 +26,12 @@ export default function LoginForm() {
         </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block text-sm font-medium text-gray-700">
-            Email
+            Usuario o email
             <input
-              type="email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="correo@ejemplo.com"
+              placeholder="cajero1 o correo@ejemplo.com"
               className="mt-1 w-full h-11 px-3 border border-[var(--color-border-tertiary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />

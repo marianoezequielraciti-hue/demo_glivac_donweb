@@ -38,6 +38,7 @@ export default function POSv2() {
   const [budgetClientName, setBudgetClientName] = useState('')
   const [fiadoClientSearch, setFiadoClientSearch] = useState('')
   const [fiadoClientSelected, setFiadoClientSelected] = useState(false)
+  const [fiadoClientId, setFiadoClientId] = useState(null)
   const fiadoInputRef = useRef(null)
   const [liveTime, setLiveTime] = useState(nowART())
   const [isNocturnalSurcharge, setIsNocturnalSurcharge] = useState(false)
@@ -270,7 +271,7 @@ export default function POSv2() {
   }
 
   const completeSaleMutation = useMutation({
-    mutationFn: async ({ cartItems, total, method, customerName }) => {
+    mutationFn: async ({ cartItems, total, method, customerName, clientId }) => {
       const { data: sale, error } = await supabase.from('sales').insert({
         sale_number: `V-${Date.now()}`,
         items: cartItems,
@@ -285,9 +286,12 @@ export default function POSv2() {
       if (method === 'fiado') {
         const { error: fiadoError } = await supabase.from('fiados').insert({
           client: customerName,
+          customer_name: customerName,
           amount: total,
           paid: false,
+          items: cartItems,
           notes: `Venta ${sale.sale_number}`,
+          ...(clientId ? { client_id: clientId } : {}),
           ...(turno.storeId ? { store_id: turno.storeId } : {}),
         })
         if (fiadoError) {
@@ -315,6 +319,7 @@ export default function POSv2() {
       setFiadoCustomer('')
       setFiadoClientSearch('')
       setFiadoClientSelected(false)
+      setFiadoClientId(null)
       setShowFiadoModal(false)
       setPendingSale(null)
       setShowMobileCart(false)
@@ -344,6 +349,7 @@ export default function POSv2() {
       total: pendingSale.total,
       method: 'fiado',
       customerName: name,
+      clientId: fiadoClientId,
     })
   }
 
@@ -351,6 +357,7 @@ export default function POSv2() {
     setFiadoCustomer(client.full_name)
     setFiadoClientSearch(client.full_name)
     setFiadoClientSelected(true)
+    setFiadoClientId(client.id)
   }
 
   const handleApplyPromotion = (promo) => {
@@ -481,6 +488,7 @@ export default function POSv2() {
     setObservations('')
     setClosingSummary(null)
     setFiadoCustomer('')
+    setFiadoClientId(null)
     setShowFiadoModal(false)
     setPendingSale(null)
     localStorage.removeItem(STORAGE_KEY)
@@ -1133,7 +1141,7 @@ export default function POSv2() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowFiadoModal(false); setPendingSale(null); setFiadoCustomer(''); setFiadoClientSearch(''); setFiadoClientSelected(false) }}
+              onClick={() => { setShowFiadoModal(false); setPendingSale(null); setFiadoCustomer(''); setFiadoClientSearch(''); setFiadoClientSelected(false); setFiadoClientId(null) }}
               className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Cancelar

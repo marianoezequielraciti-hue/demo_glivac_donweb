@@ -55,6 +55,28 @@ export default function Products() {
     enabled: !!user,
   })
 
+  const { data: salesData = [] } = useQuery({
+    queryKey: ['sales-for-stock', effectiveStoreId],
+    queryFn: async () => {
+      let q = supabase.from('sales').select('*')
+      if (effectiveStoreId) q = q.eq('store_id', effectiveStoreId)
+      const { data } = await q
+      return data || []
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  })
+
+  const soldByProduct = useMemo(() => {
+    const map = {}
+    for (const sale of salesData) {
+      for (const item of (sale.items || [])) {
+        if (item.product_id) map[item.product_id] = (map[item.product_id] || 0) + (item.quantity || 0)
+      }
+    }
+    return map
+  }, [salesData])
+
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [sortKey, setSortKey] = useState('name')
@@ -397,17 +419,18 @@ export default function Products() {
           <thead>
               <tr className="text-xs uppercase tracking-[0.08em] text-zinc-400 border-b border-zinc-100">
                 {[
-                  { label: 'Producto',  col: 'name' },
-                  { label: 'Categoría', col: 'category' },
-                  { label: 'Stock',     col: 'current_stock' },
-                  { label: 'P.Compra', col: 'purchase_price' },
-                  { label: 'P.Venta',  col: 'sale_price' },
-                  { label: 'Vence',    col: 'expiration_date' },
-                  { label: 'Margen',   col: 'margin' },
-                  { label: 'Estado',   col: 'active' },
+                  { label: 'Producto',    col: 'name' },
+                  { label: 'Categoría',   col: 'category' },
+                  { label: 'Disponible',  col: 'current_stock' },
+                  { label: 'Vendido',     col: null },
+                  { label: 'P.Compra',   col: 'purchase_price' },
+                  { label: 'P.Venta',    col: 'sale_price' },
+                  { label: 'Vence',      col: 'expiration_date' },
+                  { label: 'Margen',     col: 'margin' },
+                  { label: 'Estado',     col: 'active' },
                 ].map(({ label, col }) => (
-                  <th key={col} className="px-4 py-3 cursor-pointer select-none hover:text-zinc-600 transition-colors" onClick={() => handleSort(col)}>
-                    {label}<SortIcon col={col} />
+                  <th key={label} className={`px-4 py-3 ${col ? 'cursor-pointer select-none hover:text-zinc-600 transition-colors' : ''}`} onClick={() => col && handleSort(col)}>
+                    {label}{col && <SortIcon col={col} />}
                   </th>
                 ))}
                 <th className="px-4 py-3 text-right">Acciones</th>
@@ -428,6 +451,11 @@ export default function Products() {
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${product.current_stock <= product.min_stock ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                       {product.current_stock} / {product.min_stock}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
+                      {soldByProduct[product.id] || 0}
                     </span>
                   </td>
                   <td className="px-4 py-3">{fmtMoney(product.purchase_price || 0)}</td>
@@ -463,7 +491,7 @@ export default function Products() {
             })}
             {!filteredProducts.length && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
                   {isLoading ? 'Cargando productos...' : 'No se encontraron productos.'}
                 </td>
               </tr>

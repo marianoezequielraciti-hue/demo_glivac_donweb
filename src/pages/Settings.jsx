@@ -13,11 +13,10 @@ export default function Settings() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const { stores } = useStoreFilter()
-  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteUsername, setInviteUsername] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState(getDefaultRoleForDemo())
   const [invitePassword, setInvitePassword] = useState('')
-  const [sendInvite, setSendInvite] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -53,27 +52,29 @@ export default function Settings() {
   }, [loadProfiles])
 
   const handleInvite = async () => {
-    if (!inviteEmail) {
-      toast.error('Ingresá un email')
+    if (!inviteUsername) {
+      toast.error('Ingresá un código de acceso')
+      return
+    }
+    if (!invitePassword) {
+      toast.error('La contraseña es obligatoria')
       return
     }
     setInviting(true)
     try {
       const { credentials } = await createAdminUser({
-        email: inviteEmail,
-        username: inviteName,
+        username: inviteUsername,
+        displayName: inviteName,
         role: inviteRole,
         storeId: stores[0]?.id || null,
         password: invitePassword,
-        sendInvite,
       })
-      setLastCredentials(credentials)
-      toast.success(sendInvite ? `Invitación enviada a ${inviteEmail}` : `Usuario creado: ${inviteEmail}`)
-      setInviteEmail('')
+      setLastCredentials({ ...credentials, username: inviteUsername })
+      toast.success(`Usuario creado: ${inviteUsername}`)
+      setInviteUsername('')
       setInviteName('')
       setInviteRole(getDefaultRoleForDemo())
       setInvitePassword('')
-      setSendInvite(false)
       loadProfiles()
     } catch (error) {
       toast.error('No se pudo crear el usuario: ' + error.message)
@@ -225,19 +226,19 @@ export default function Settings() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Users className="w-4 h-4" /> Usuarios demo</h2>
-        <p className="text-sm text-gray-500">Creá accesos listos para usar en Supabase y Vercel sin exponer la service role en el navegador.</p>
+        <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Users className="w-4 h-4" /> Gestión de empleados</h2>
+        <p className="text-sm text-gray-500">Creá accesos para empleados con un código de acceso (sin email). Los empleados inician sesión con su código y contraseña.</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <input
-            value={inviteName}
-            onChange={(event) => setInviteName(event.target.value)}
-            placeholder="Nombre visible..."
+            value={inviteUsername}
+            onChange={(event) => setInviteUsername(event.target.value)}
+            placeholder="Código de acceso (ej: cajero1) *"
             className="h-11 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <input
-            value={inviteEmail}
-            onChange={(event) => setInviteEmail(event.target.value)}
-            placeholder="Email del usuario..."
+            value={inviteName}
+            onChange={(event) => setInviteName(event.target.value)}
+            placeholder="Nombre visible (opcional)"
             className="h-11 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <select
@@ -250,20 +251,12 @@ export default function Settings() {
             ))}
           </select>
           <input
+            type="password"
             value={invitePassword}
             onChange={(event) => setInvitePassword(event.target.value)}
-            placeholder="Contraseña temporal opcional..."
-            disabled={sendInvite}
-            className="h-11 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-400"
+            placeholder="Contraseña *"
+            className="h-11 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
-          <label className="h-11 px-3 border border-gray-200 rounded-lg text-sm flex items-center gap-2 text-gray-700">
-            <input
-              type="checkbox"
-              checked={sendInvite}
-              onChange={(event) => setSendInvite(event.target.checked)}
-            />
-            Enviar invitación por email
-          </label>
         </div>
         <div className="flex flex-wrap gap-3">
           <button
@@ -271,13 +264,14 @@ export default function Settings() {
             disabled={inviting}
             className="px-5 h-11 bg-zinc-800 hover:bg-zinc-900 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-colors"
           >
-            {inviting && <Loader2 className="w-4 h-4 animate-spin" />} Crear usuario
+            {inviting && <Loader2 className="w-4 h-4 animate-spin" />} Crear empleado
           </button>
         </div>
-        <p className="text-xs text-gray-400">Si no ingresás contraseña, el sistema genera una temporal automáticamente para la demo.</p>
         {lastCredentials && (
           <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-900">
-            Credenciales demo: {lastCredentials.email} / {lastCredentials.password}
+            <p className="font-semibold mb-1">Credenciales creadas:</p>
+            <p>Código: <strong>{lastCredentials.username || lastCredentials.email}</strong></p>
+            <p>Contraseña: <strong>{lastCredentials.password}</strong></p>
           </div>
         )}
       </div>

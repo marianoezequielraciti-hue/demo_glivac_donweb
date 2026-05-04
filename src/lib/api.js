@@ -151,7 +151,7 @@ export const supabase = {
         const res = await fetch('/api/auth/login', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ email, password }),
+          body:    JSON.stringify({ identifier: email, password }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) return { error: { message: json.error || 'Credenciales incorrectas' } };

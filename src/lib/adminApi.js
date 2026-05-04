@@ -24,5 +24,5 @@ async function request(path, options = {}) {
 
 export function listAdminUsers()         { return request('/api/auth/users') }
 export function createAdminUser(payload) { return request('/api/auth/users', { method: 'POST',   body: JSON.stringify(payload) }) }
-export function updateAdminUser(payload) { return request(`/api/auth/users/${payload.id}`, { method: 'PATCH', body: JSON.stringify(payload) }) }
+export function updateAdminUser(payload) { return request(`/api/auth/users/${payload.userId || payload.id}`, { method: 'PATCH', body: JSON.stringify(payload) }) }
 export function deleteAdminUser(id)      { return request(`/api/auth/users/${id}`,         { method: 'DELETE' }) }

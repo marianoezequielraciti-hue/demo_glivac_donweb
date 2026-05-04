@@ -1297,6 +1297,77 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
         </Widget>
       )}
 
+      {/* ── VENCIMIENTOS ────────────────────────────────────────── */}
+      {(() => {
+        const today = new Date()
+        const productsWithExpiry = products.filter(p => p.expiration_date)
+        if (!productsWithExpiry.length) return null
+
+        const expired   = productsWithExpiry.filter(p => new Date(p.expiration_date) < today)
+        const soon      = productsWithExpiry.filter(p => { const d = new Date(p.expiration_date); return d >= today && (d - today) / 86400000 <= 30 })
+        const ok        = productsWithExpiry.filter(p => { const d = new Date(p.expiration_date); return (d - today) / 86400000 > 30 })
+
+        const daysLeft = (v) => Math.ceil((new Date(v) - today) / 86400000)
+        const fmtDate  = (v) => new Date(v).toLocaleDateString('es-AR')
+
+        const rows = [
+          ...expired.map(p => ({ ...p, _group: 'Vencido', _days: daysLeft(p.expiration_date) })),
+          ...soon.map(p => ({ ...p, _group: 'Próximo', _days: daysLeft(p.expiration_date) })),
+          ...ok.map(p => ({ ...p, _group: 'OK', _days: daysLeft(p.expiration_date) })),
+        ]
+
+        return (
+          <Widget className="p-5">
+            <SectionLabel>Vencimientos de productos</SectionLabel>
+            <div className="flex gap-3 mb-4 flex-wrap">
+              {expired.length > 0 && <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#fff2f2] text-[#ff3b30]">{expired.length} vencido{expired.length !== 1 ? 's' : ''}</span>}
+              {soon.length > 0 && <span className="text-xs font-semibold px-3 py-1 rounded-full bg-amber-50 text-amber-600">{soon.length} próximo{soon.length !== 1 ? 's' : ''} a vencer</span>}
+              {ok.length > 0 && <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#f0fff4] text-[#34c759]">{ok.length} OK</span>}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-[#86868b] border-b border-black/5">
+                    {['Producto','Código','Stock','Vencimiento','Días restantes','Estado'].map(h => (
+                      <th key={h} className={`pb-2 font-medium ${h === 'Producto' ? 'text-left' : 'text-right'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/5">
+                  {rows.map(p => {
+                    const isExpired = p._group === 'Vencido'
+                    const isSoon    = p._group === 'Próximo'
+                    const rowBg = isExpired ? 'bg-[#fff8f8]' : isSoon ? 'bg-amber-50/40' : ''
+                    const daysBadge = isExpired
+                      ? 'bg-[#fff2f2] text-[#ff3b30]'
+                      : isSoon ? 'bg-amber-50 text-amber-600'
+                      : 'bg-[#f0fff4] text-[#34c759]'
+                    return (
+                      <tr key={p.id} className={rowBg}>
+                        <td className="py-2.5 font-medium text-[#1d1d1f]">{p.name}</td>
+                        <td className="py-2.5 text-right text-[#86868b] text-xs">{p.barcode || '—'}</td>
+                        <td className="py-2.5 text-right text-[#86868b]">{p.current_stock}</td>
+                        <td className="py-2.5 text-right text-[#86868b]">{fmtDate(p.expiration_date)}</td>
+                        <td className="py-2.5 text-right">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${daysBadge}`}>
+                            {isExpired ? `hace ${Math.abs(p._days)}d` : `en ${p._days}d`}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${daysBadge}`}>
+                            {isExpired ? 'Vencido' : isSoon ? 'Próximo' : 'OK'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Widget>
+        )
+      })()}
+
     </div>
   )
 }

@@ -8,8 +8,9 @@ const router = Router();
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+  const { identifier, email, password } = req.body || {};
+  const loginId = identifier || email;
+  if (!loginId || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
 
   try {
     const [rows] = await pool.query(
@@ -17,8 +18,8 @@ router.post('/login', async (req, res) => {
       'FROM users u ' +
       'LEFT JOIN user_profiles p ON p.id = u.id ' +
       'LEFT JOIN stores s ON s.id = p.store_id ' +
-      'WHERE u.email = ? LIMIT 1',
-      [email.toLowerCase()]
+      'WHERE u.email = ? OR p.username = ? LIMIT 1',
+      [loginId.toLowerCase(), loginId.toLowerCase()]
     );
 
     const row = rows[0];
@@ -82,21 +83,28 @@ router.get('/users', authMiddleware, async (req, res) => {
 // POST /api/auth/users  (crear usuario — solo admin)
 router.post('/users', authMiddleware, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
-  const { email, password, role = 'employee', username, store_id } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+  const { email, password, role = 'employee', username, displayName, storeId, store_id } = req.body || {};
+  const effectiveUsername = username || null;
+  const effectiveDisplayName = displayName || username || null;
+  if (!effectiveUsername && !email) return res.status(400).json({ error: 'Se requiere código de acceso o email' });
+  if (!password) return res.status(400).json({ error: 'La contraseña es obligatoria' });
+
+  // Si no hay email, generar uno interno basado en el username
+  const effectiveEmail = email ? email.toLowerCase() : `${effectiveUsername.toLowerCase()}@glivac.internal`;
+  const effectiveStoreId = storeId || store_id || null;
 
   try {
     const id   = uuid();
     const hash = await bcrypt.hash(password, 12);
     await pool.query('INSERT INTO users (id, email, encrypted_password) VALUES (?, ?, ?)',
-      [id, email.toLowerCase(), hash]);
+      [id, effectiveEmail, hash]);
     await pool.query(
       'INSERT INTO user_profiles (id, email, role, username, store_id) VALUES (?, ?, ?, ?, ?)',
-      [id, email.toLowerCase(), role, username || null, store_id || null]
+      [id, effectiveEmail, role, effectiveDisplayName, effectiveStoreId]
     );
-    res.status(201).json({ id, email, role });
+    res.status(201).json({ id, email: effectiveEmail, username: effectiveDisplayName, role });
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'El email ya existe' });
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'El usuario ya existe' });
     console.error('create user error', err);
     res.status(500).json({ error: 'Error interno' });
   }

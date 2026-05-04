@@ -16,6 +16,7 @@ const JSON_COLS = {
   sales:     ['items'],
   budgets:   ['items'],
   purchases: ['items'],
+  fiados:    ['items'],
 };
 
 function jsonCols(table) { return JSON_COLS[table] || []; }

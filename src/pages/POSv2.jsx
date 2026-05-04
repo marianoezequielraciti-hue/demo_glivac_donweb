@@ -39,6 +39,10 @@ export default function POSv2() {
   const [fiadoClientSearch, setFiadoClientSearch] = useState('')
   const [fiadoClientSelected, setFiadoClientSelected] = useState(false)
   const [fiadoClientId, setFiadoClientId] = useState(null)
+  const [showNewClientForm, setShowNewClientForm] = useState(false)
+  const [newClientName, setNewClientName] = useState('')
+  const [newClientPhone, setNewClientPhone] = useState('')
+  const [creatingClient, setCreatingClient] = useState(false)
   const fiadoInputRef = useRef(null)
   const [liveTime, setLiveTime] = useState(nowART())
   const [isNocturnalSurcharge, setIsNocturnalSurcharge] = useState(false)
@@ -341,16 +345,59 @@ export default function POSv2() {
     completeSaleMutation.mutate({ cartItems, total, method: paymentMethod })
   }
 
+  const resetFiadoModal = () => {
+    setShowFiadoModal(false)
+    setPendingSale(null)
+    setFiadoCustomer('')
+    setFiadoClientSearch('')
+    setFiadoClientSelected(false)
+    setFiadoClientId(null)
+    setShowNewClientForm(false)
+    setNewClientName('')
+    setNewClientPhone('')
+  }
+
   const handleConfirmFiado = () => {
-    const name = fiadoCustomer.trim()
-    if (!name) { toast.error('Escribí el nombre del cliente'); return }
+    if (!fiadoClientId) { toast.error('Seleccioná o creá un cliente para continuar'); return }
     completeSaleMutation.mutate({
       cartItems: pendingSale.cartItems,
       total: pendingSale.total,
       method: 'fiado',
-      customerName: name,
+      customerName: fiadoCustomer.trim(),
       clientId: fiadoClientId,
     })
+  }
+
+  const handleCreateClientAndSelect = async () => {
+    const name = newClientName.trim()
+    if (!name) { toast.error('Ingresá el nombre del cliente'); return }
+    setCreatingClient(true)
+    try {
+      const { data, error } = await supabase.from('clients').insert({
+        full_name: name,
+        phone: newClientPhone.trim() || null,
+        active: true,
+        ...(effectiveStoreId ? { store_id: effectiveStoreId } : {}),
+      })
+      if (error) throw error
+      const created = data
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      setFiadoCustomer(name)
+      setFiadoClientSearch(name)
+      setFiadoClientSelected(true)
+      setFiadoClientId(created?.id || null)
+      // Refetch clients so the new one appears
+      const { data: fresh } = await supabase.from('clients').select('id, full_name, phone').ilike('full_name', name).limit(1).single()
+      if (fresh) setFiadoClientId(fresh.id)
+      setShowNewClientForm(false)
+      setNewClientName('')
+      setNewClientPhone('')
+      toast.success(`Cliente "${name}" creado`)
+    } catch (err) {
+      toast.error('No se pudo crear el cliente: ' + err.message)
+    } finally {
+      setCreatingClient(false)
+    }
   }
 
   const handleFiadoClientPick = (client) => {
@@ -358,6 +405,7 @@ export default function POSv2() {
     setFiadoClientSearch(client.full_name)
     setFiadoClientSelected(true)
     setFiadoClientId(client.id)
+    setShowNewClientForm(false)
   }
 
   const handleApplyPromotion = (promo) => {
@@ -1101,56 +1149,92 @@ export default function POSv2() {
         <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-widest">Venta a fiado</p>
-            <h3 className="text-xl font-bold mt-1">¿A nombre de quién?</h3>
+            <h3 className="text-xl font-bold mt-1">Seleccionar cliente</h3>
             <p className="text-sm text-gray-500 mt-1">Total: <span className="font-semibold text-gray-900">{fmtMoney(pendingSale?.total || 0)}</span></p>
           </div>
-          {/* Client autocomplete — picks from registered clients or free text */}
-          <div className="space-y-2">
-            <input
-              ref={fiadoInputRef}
-              value={fiadoClientSelected ? fiadoCustomer : fiadoClientSearch}
-              onChange={e => {
-                const v = e.target.value
-                setFiadoClientSearch(v)
-                setFiadoCustomer(v)
-                setFiadoClientSelected(false)
-              }}
-              onKeyDown={e => e.key === 'Enter' && handleConfirmFiado()}
-              placeholder="Buscar cliente o escribir nombre..."
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-zinc-900/20 focus:border-zinc-900"
-            />
-            {!fiadoClientSelected && fiadoClientSearch.length > 0 && (
-              <div className="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
-                {clients
-                  .filter(c => c.full_name.toLowerCase().includes(fiadoClientSearch.toLowerCase()))
-                  .slice(0, 6)
-                  .map(c => (
-                    <button
-                      key={c.id}
-                      onClick={() => handleFiadoClientPick(c)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-800"
-                    >
-                      {c.full_name}
-                    </button>
-                  ))}
-                {clients.filter(c => c.full_name.toLowerCase().includes(fiadoClientSearch.toLowerCase())).length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">Sin clientes registrados con ese nombre</p>
+
+          {!fiadoClientSelected ? (
+            <>
+              {/* Búsqueda — solo clientes registrados */}
+              <div className="space-y-2">
+                <input
+                  ref={fiadoInputRef}
+                  value={fiadoClientSearch}
+                  onChange={e => { setFiadoClientSearch(e.target.value); setShowNewClientForm(false) }}
+                  placeholder="Buscar cliente registrado..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-zinc-900/20 focus:border-zinc-900"
+                />
+                {fiadoClientSearch.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
+                    {clients
+                      .filter(c => c.full_name.toLowerCase().includes(fiadoClientSearch.toLowerCase()))
+                      .slice(0, 6)
+                      .map(c => (
+                        <button key={c.id} onClick={() => handleFiadoClientPick(c)}
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 text-gray-800 flex flex-col">
+                          <span className="font-medium">{c.full_name}</span>
+                          {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
+                        </button>
+                      ))}
+                    {clients.filter(c => c.full_name.toLowerCase().includes(fiadoClientSearch.toLowerCase())).length === 0 && (
+                      <div className="py-3 px-3 text-center space-y-2">
+                        <p className="text-xs text-gray-400">No hay clientes con ese nombre</p>
+                        <button onClick={() => { setShowNewClientForm(true); setNewClientName(fiadoClientSearch) }}
+                          className="text-xs font-semibold text-zinc-900 underline underline-offset-2">
+                          + Crear cliente nuevo
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {fiadoClientSearch.length === 0 && (
+                  <button onClick={() => setShowNewClientForm(true)}
+                    className="w-full text-sm font-semibold text-zinc-700 border border-dashed border-gray-300 rounded-xl py-2.5 hover:bg-gray-50 transition-colors">
+                    + Crear cliente nuevo
+                  </button>
                 )}
               </div>
-            )}
-          </div>
+
+              {/* Formulario nuevo cliente inline */}
+              {showNewClientForm && (
+                <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Nuevo cliente</p>
+                  <input value={newClientName} onChange={e => setNewClientName(e.target.value)}
+                    placeholder="Nombre completo *"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900/20" />
+                  <input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)}
+                    placeholder="Teléfono (opcional)"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900/20" />
+                  <button onClick={handleCreateClientAndSelect} disabled={creatingClient || !newClientName.trim()}
+                    className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2">
+                    {creatingClient && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Crear y seleccionar
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            /* Cliente seleccionado — mostrar chip con opción de cambiar */
+            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-emerald-800">{fiadoCustomer}</p>
+                <p className="text-xs text-emerald-600">Cliente seleccionado</p>
+              </div>
+              <button onClick={() => { setFiadoClientSelected(false); setFiadoClientId(null); setFiadoCustomer(''); setFiadoClientSearch('') }}
+                className="text-xs text-emerald-700 font-semibold underline underline-offset-2 hover:text-emerald-900">
+                Cambiar
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <button
-              onClick={() => { setShowFiadoModal(false); setPendingSale(null); setFiadoCustomer(''); setFiadoClientSearch(''); setFiadoClientSelected(false); setFiadoClientId(null) }}
-              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
+            <button onClick={resetFiadoModal}
+              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
               Cancelar
             </button>
-            <button
-              onClick={handleConfirmFiado}
-              disabled={!fiadoCustomer.trim() || completeSaleMutation.isPending}
-              className="flex-1 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-semibold hover:bg-zinc-800 disabled:opacity-40 flex items-center justify-center gap-2"
-            >
+            <button onClick={handleConfirmFiado}
+              disabled={!fiadoClientId || completeSaleMutation.isPending}
+              className="flex-1 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-semibold hover:bg-zinc-800 disabled:opacity-40 flex items-center justify-center gap-2">
               {completeSaleMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               Confirmar fiado
             </button>

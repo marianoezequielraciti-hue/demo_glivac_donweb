@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { createAdminUser, listAdminUsers, updateAdminUser } from '@/lib/adminApi'
+import { createAdminUser, listAdminUsers, updateAdminUser, deleteAdminUser } from '@/lib/adminApi'
 import { ROLE_OPTIONS, roleRequiresStore, getDefaultRoleForDemo } from '@/lib/roles'
 import { exportMultiSheet, PRODUCT_COLUMNS, SALE_COLUMNS, PURCHASE_COLUMNS, EXPENSE_COLUMNS } from '@/lib/xlsxUtils'
 import { toast } from 'sonner'
-import { Users, Database, Download, Trash2, Loader2 } from 'lucide-react'
+import { Users, Database, Download, Trash2, Loader2, KeyRound, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useStoreFilter } from '@/hooks/useStoreFilter'
 
@@ -23,6 +23,21 @@ export default function Settings() {
   const [exporting, setExporting] = useState(false)
   const [profiles, setProfiles] = useState([])
   const [lastCredentials, setLastCredentials] = useState(null)
+
+  // edit user modal
+  const [editModal, setEditModal] = useState(null)   // profile object
+  const [editRole, setEditRole] = useState('')
+  const [editStore, setEditStore] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+
+  // change password modal
+  const [pwModal, setPwModal] = useState(null)       // profile object
+  const [newPassword, setNewPassword] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+
+  // delete user confirm
+  const [deleteUserModal, setDeleteUserModal] = useState(null) // profile object
+  const [deletingUser, setDeletingUser] = useState(false)
 
   const { data: counts = { products: 0, sales: 0, purchases: 0, expenses: 0 } } = useQuery({
     queryKey: ['settings-counts'],
@@ -205,14 +220,67 @@ export default function Settings() {
 
   const handleNameChange = async (profile, username) => {
     try {
-      await updateAdminUser({
-        userId: profile.id,
-        username,
-      })
+      await updateAdminUser({ userId: profile.id, username })
       toast.success('Nombre actualizado')
       loadProfiles()
     } catch {
       toast.error('No se pudo actualizar el nombre')
+    }
+  }
+
+  const openEditModal = (profile) => {
+    setEditModal(profile)
+    setEditRole(profile.role || 'employee')
+    setEditStore(profile.store_id || '')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editModal) return
+    setEditSaving(true)
+    try {
+      await updateAdminUser({
+        userId: editModal.id,
+        role: editRole,
+        storeId: roleRequiresStore(editRole) ? (editStore || null) : null,
+      })
+      toast.success('Usuario actualizado')
+      loadProfiles()
+      setEditModal(null)
+    } catch {
+      toast.error('No se pudo actualizar el usuario')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const handleSavePassword = async () => {
+    if (!pwModal || !newPassword.trim()) { toast.error('Ingresá una contraseña'); return }
+    if (newPassword.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+    setPwSaving(true)
+    try {
+      await updateAdminUser({ userId: pwModal.id, password: newPassword })
+      toast.success('Contraseña actualizada')
+      setPwModal(null)
+      setNewPassword('')
+    } catch {
+      toast.error('No se pudo cambiar la contraseña')
+    } finally {
+      setPwSaving(false)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserModal) return
+    setDeletingUser(true)
+    try {
+      await deleteAdminUser(deleteUserModal.id)
+      toast.success('Usuario eliminado')
+      loadProfiles()
+      setDeleteUserModal(null)
+    } catch {
+      toast.error('No se pudo eliminar el usuario')
+    } finally {
+      setDeletingUser(false)
     }
   }
 
@@ -278,50 +346,149 @@ export default function Settings() {
 
       {profiles.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
-          <h2 className="font-semibold text-gray-900">Usuarios registrados</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-[0.08em] text-zinc-400 border-b border-zinc-100">
-                  <th className="px-4 py-2">Nombre</th>
-                  <th className="px-4 py-2">Email</th>
-                  <th className="px-4 py-2">Rol</th>
-                  <th className="px-4 py-2">Creado</th>
-                  <th className="px-4 py-2">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((profile) => (
-                  <tr key={profile.id} className="border-t border-gray-100">
-                    <td className="px-4 py-2">
-                      <input
-                        defaultValue={profile.username || ''}
-                        onBlur={(event) => {
-                          const value = event.target.value.trim()
-                          if (value !== (profile.username || '')) handleNameChange(profile, value)
-                        }}
-                        placeholder="Sin nombre"
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-4 py-2">{profile.email}</td>
-                    <td className="px-4 py-2">
-                      <select
-                        value={profile.role}
-                        onChange={(event) => handleRoleChange(profile, event.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
-                      >
-                        {ROLE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-2">{new Date(profile.created_at).toLocaleDateString('es-AR')}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500">{profile.store_name || 'Glivac'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h2 className="font-semibold text-gray-900">Usuarios registrados ({profiles.length})</h2>
+          <div className="space-y-2">
+            {profiles.map((profile) => {
+              const displayCode = profile.username && !profile.username.includes('@') ? profile.username : null
+              const displayName = profile.username || profile.email?.split('@')[0] || '—'
+              return (
+                <div key={profile.id} className="flex items-center gap-3 border border-gray-100 rounded-xl px-4 py-3 hover:bg-gray-50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {displayCode ? `Código: ${displayCode}` : profile.email}
+                      {' · '}
+                      <span className="capitalize">{ROLE_OPTIONS.find(r => r.value === profile.role)?.label || profile.role}</span>
+                      {profile.store_name ? ` · ${profile.store_name}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => openEditModal(profile)}
+                      title="Editar rol y negocio"
+                      className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                    >
+                      <Users className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => { setPwModal(profile); setNewPassword('') }}
+                      title="Cambiar contraseña"
+                      className="p-2 rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteUserModal(profile)}
+                      title="Eliminar usuario"
+                      className="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: editar rol y negocio ─────────────────────────────────────── */}
+      {editModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Editar usuario</p>
+                <h3 className="text-lg font-bold mt-0.5">{editModal.username || editModal.email}</h3>
+              </div>
+              <button onClick={() => setEditModal(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</label>
+                <select value={editRole} onChange={e => setEditRole(e.target.value)}
+                  className="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg text-sm">
+                  {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              {roleRequiresStore(editRole) && stores.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Negocio</label>
+                  <select value={editStore} onChange={e => setEditStore(e.target.value)}
+                    className="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg text-sm">
+                    <option value="">Sin negocio asignado</option>
+                    {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditModal(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleSaveEdit} disabled={editSaving}
+                className="flex-1 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2">
+                {editSaving && <Loader2 className="w-4 h-4 animate-spin" />} Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: cambiar contraseña ───────────────────────────────────────── */}
+      {pwModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Cambiar contraseña</p>
+                <h3 className="text-lg font-bold mt-0.5">{pwModal.username || pwModal.email}</h3>
+              </div>
+              <button onClick={() => setPwModal(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+            </div>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSavePassword()}
+              placeholder="Nueva contraseña (mín. 6 caracteres)"
+              className="w-full h-11 px-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setPwModal(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleSavePassword} disabled={pwSaving || !newPassword.trim()}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2">
+                {pwSaving && <Loader2 className="w-4 h-4 animate-spin" />} Cambiar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: confirmar eliminar usuario ──────────────────────────────── */}
+      {deleteUserModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-widest">Eliminar usuario</p>
+              <h3 className="text-lg font-bold mt-0.5">{deleteUserModal.username || deleteUserModal.email}</h3>
+              <p className="text-sm text-gray-500 mt-2">Esta acción es permanente. El usuario perderá acceso inmediatamente.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteUserModal(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleDeleteUser} disabled={deletingUser}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2">
+                {deletingUser && <Loader2 className="w-4 h-4 animate-spin" />} Eliminar
+              </button>
+            </div>
           </div>
         </div>
       )}

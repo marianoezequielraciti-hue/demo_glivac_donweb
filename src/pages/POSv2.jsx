@@ -288,6 +288,9 @@ export default function POSv2() {
       if (error) throw error
 
       if (method === 'fiado') {
+        const storeSpread = turno.storeId ? { store_id: turno.storeId } : {}
+
+        // Intento completo (requiere migración con columnas customer_name, client_id, items)
         const { error: fiadoError } = await supabase.from('fiados').insert({
           client: customerName,
           customer_name: customerName,
@@ -296,11 +299,22 @@ export default function POSv2() {
           items: cartItems,
           notes: `Venta ${sale.sale_number}`,
           ...(clientId ? { client_id: clientId } : {}),
-          ...(turno.storeId ? { store_id: turno.storeId } : {}),
+          ...storeSpread,
         })
+
         if (fiadoError) {
-          await supabase.from('sales').delete().eq('id', sale.id)
-          throw new Error(`No se pudo registrar el fiado: ${fiadoError.message}`)
+          // Fallback: columnas originales solamente (sin migración)
+          const { error: fallbackError } = await supabase.from('fiados').insert({
+            client: customerName,
+            amount: total,
+            paid: false,
+            notes: `Venta ${sale.sale_number}`,
+            ...storeSpread,
+          })
+          if (fallbackError) {
+            await supabase.from('sales').delete().eq('id', sale.id)
+            throw new Error(`No se pudo registrar el fiado: ${fallbackError.message}`)
+          }
         }
       }
 
@@ -373,22 +387,21 @@ export default function POSv2() {
     if (!name) { toast.error('Ingresá el nombre del cliente'); return }
     setCreatingClient(true)
     try {
-      const { data, error } = await supabase.from('clients').insert({
+      const { data: created, error } = await supabase.from('clients').insert({
         full_name: name,
         phone: newClientPhone.trim() || null,
         active: true,
         ...(effectiveStoreId ? { store_id: effectiveStoreId } : {}),
       })
       if (error) throw error
-      const created = data
+      // El POST handler devuelve la fila insertada con su id
+      const clientId = created?.id
+      if (!clientId) throw new Error('No se pudo obtener el ID del cliente creado')
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       setFiadoCustomer(name)
       setFiadoClientSearch(name)
       setFiadoClientSelected(true)
-      setFiadoClientId(created?.id || null)
-      // Refetch clients so the new one appears
-      const { data: fresh } = await supabase.from('clients').select('id, full_name, phone').ilike('full_name', name).limit(1).single()
-      if (fresh) setFiadoClientId(fresh.id)
+      setFiadoClientId(clientId)
       setShowNewClientForm(false)
       setNewClientName('')
       setNewClientPhone('')

@@ -25,7 +25,7 @@ function getHeaders() {
 // ── Query Builder ─────────────────────────────────────────────────────────
 class QueryBuilder {
   #table; #method = 'GET'; #body = null;
-  #select = '*'; #filters = []; #order = null; #limitVal = null;
+  #select = '*'; #filters = []; #order = null; #limitVal = null; #offsetVal = null;
   #isSingle = false; #isUpsert = false; #returnData = false;
 
   constructor(table) { this.#table = table; }
@@ -53,6 +53,7 @@ class QueryBuilder {
   in(col, vals)     { this.#filters.push({ op: 'in',    col, val: vals }); return this; }
   order(col, { ascending = true } = {}) { this.#order = { col, ascending }; return this; }
   limit(n)          { this.#limitVal = n; return this; }
+  range(from, to)   { this.#offsetVal = from; this.#limitVal = to - from + 1; return this; }
   single()          { this.#isSingle = true; return this; }
 
   // --- ejecución (thenable) ---
@@ -71,7 +72,8 @@ class QueryBuilder {
     if (this.#order) {
       params.set('order', (this.#order.ascending ? '' : '-') + this.#order.col);
     }
-    if (this.#limitVal !== null) params.set('limit', this.#limitVal);
+    if (this.#limitVal !== null)  params.set('limit', this.#limitVal);
+    if (this.#offsetVal !== null) params.set('offset', this.#offsetVal);
     if (this.#isUpsert)          params.set('upsert', '1');
 
     const url = `/api/${this.#table}?${params}`;

@@ -43,12 +43,17 @@ export default function Settings() {
     queryKey: ['settings-counts'],
     queryFn: async () => {
       const [p, s, pu, e] = await Promise.all([
-        supabase.from('products').select('*', { count: 'exact', head: true }),
-        supabase.from('sales').select('*', { count: 'exact', head: true }),
-        supabase.from('purchases').select('*', { count: 'exact', head: true }),
-        supabase.from('expenses').select('*', { count: 'exact', head: true }),
+        supabase.from('products').select('id').limit(9999),
+        supabase.from('sales').select('id').limit(9999),
+        supabase.from('purchases').select('id').limit(9999),
+        supabase.from('expenses').select('id').limit(9999),
       ])
-      return { products: p.count || 0, sales: s.count || 0, purchases: pu.count || 0, expenses: e.count || 0 }
+      return {
+        products:  (p.data  || []).length,
+        sales:     (s.data  || []).length,
+        purchases: (pu.data || []).length,
+        expenses:  (e.data  || []).length,
+      }
     },
     enabled: !!user,
   })

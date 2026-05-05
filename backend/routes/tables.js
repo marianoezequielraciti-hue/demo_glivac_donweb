@@ -7,7 +7,7 @@ const router = Router();
 
 const ALLOWED_TABLES = new Set([
   'stores', 'user_profiles', 'products', 'clients', 'sales', 'budgets',
-  'expenses', 'client_account_entries', 'purchases', 'fiados',
+  'expenses', 'expense_categories', 'client_account_entries', 'purchases', 'fiados',
   'shift_logs', 'open_shifts',
 ]);
 

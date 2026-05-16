@@ -25,6 +25,9 @@ export default function POSv2() {
   const [montoInicial, setMontoInicial] = useState('')
   const [cart, setCart] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('efectivo')
+  const [splitMode, setSplitMode] = useState(false)
+  const [splitMethod2, setSplitMethod2] = useState('transferencia')
+  const [splitAmount1, setSplitAmount1] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -334,6 +337,8 @@ export default function POSv2() {
       setCompletedSale(sale)
       setCart([])
       setPaymentMethod('efectivo')
+      setSplitMode(false)
+      setSplitAmount1('')
       setFiadoCustomer('')
       setFiadoClientSearch('')
       setFiadoClientSelected(false)
@@ -350,6 +355,16 @@ export default function POSv2() {
     if (!cart.length || !turno) return
     const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
     const cartItems = [...cart]
+
+    if (splitMode) {
+      const amt1 = Number(splitAmount1) || 0
+      const amt2 = total - amt1
+      if (amt1 <= 0 || amt2 <= 0) { toast.error('Ingresá un monto válido para el primer método'); return }
+      const combinedMethod = `${paymentMethod}:${amt1}|${splitMethod2}:${amt2}`
+      completeSaleMutation.mutate({ cartItems, total, method: combinedMethod })
+      return
+    }
+
     if (paymentMethod === 'fiado') {
       setPendingSale({ cartItems, total })
       setShowFiadoModal(true)
@@ -1032,22 +1047,86 @@ export default function POSv2() {
           ) : (
             <div className="p-4 border-t border-gray-100 space-y-3">
               {/* Payment method */}
-              <div className="grid grid-cols-2 gap-1.5">
-                {PAYMENT_METHODS.map(method => (
-                  <button
-                    key={method}
-                    onClick={() => setPaymentMethod(method)}
-                    className={`py-2 px-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${
-                      paymentMethod === method
-                        ? 'bg-zinc-900 text-white'
-                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'
-                    }`}
-                  >
-                    <span>{PAYMENT_ICONS[method]}</span>
-                    {PAYMENT_LABELS[method]}
-                  </button>
-                ))}
-              </div>
+              {!splitMode ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {PAYMENT_METHODS.map(method => (
+                      <button
+                        key={method}
+                        onClick={() => setPaymentMethod(method)}
+                        className={`py-2 px-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${
+                          paymentMethod === method
+                            ? 'bg-zinc-900 text-white'
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'
+                        }`}
+                      >
+                        <span>{PAYMENT_ICONS[method]}</span>
+                        {PAYMENT_LABELS[method]}
+                      </button>
+                    ))}
+                  </div>
+                  {paymentMethod !== 'fiado' && (
+                    <button
+                      onClick={() => { setSplitMode(true); setSplitAmount1(''); setSplitMethod2(paymentMethod === 'efectivo' ? 'transferencia' : 'efectivo') }}
+                      className="w-full py-1.5 text-xs text-blue-600 hover:text-blue-700 font-semibold"
+                    >
+                      + Dividir entre dos métodos
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Pago combinado</p>
+                    <button onClick={() => setSplitMode(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                  </div>
+
+                  {/* Método 1 */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Método 1</p>
+                    <div className="grid grid-cols-4 gap-1 mb-2">
+                      {PAYMENT_METHODS.filter(m => m !== 'fiado').map(method => (
+                        <button key={method} onClick={() => setPaymentMethod(method)}
+                          className={`py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${paymentMethod === method ? 'bg-zinc-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          {PAYMENT_ICONS[method]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 shrink-0">{PAYMENT_LABELS[paymentMethod]}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={splitAmount1}
+                        onChange={e => setSplitAmount1(e.target.value)}
+                        placeholder="Monto"
+                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-bold text-right focus:outline-none focus:ring-1 focus:ring-zinc-900/20 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Método 2 */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Método 2</p>
+                    <div className="grid grid-cols-4 gap-1 mb-2">
+                      {PAYMENT_METHODS.filter(m => m !== 'fiado' && m !== paymentMethod).map(method => (
+                        <button key={method} onClick={() => setSplitMethod2(method)}
+                          className={`py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${splitMethod2 === method ? 'bg-zinc-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          {PAYMENT_ICONS[method]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 shrink-0">{PAYMENT_LABELS[splitMethod2]}</span>
+                      <span className="flex-1 px-3 py-1.5 border border-gray-100 rounded-lg text-sm font-bold text-right bg-gray-50 text-gray-700">
+                        {splitAmount1 && Number(splitAmount1) > 0 && Number(splitAmount1) < cartTotal
+                          ? `$ ${(cartTotal - Number(splitAmount1)).toLocaleString('es-AR')}`
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Total */}
               <div className="flex items-center justify-between px-1">

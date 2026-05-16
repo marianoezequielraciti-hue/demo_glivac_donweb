@@ -237,6 +237,7 @@ export default function Clients() {
 
   const [fiadoPayModal, setFiadoPayModal] = useState(null) // fiado object
   const [fiadoPayMethod, setFiadoPayMethod] = useState('efectivo')
+  const [fiadoPayAmount, setFiadoPayAmount] = useState('')
 
   // Queries
   const { data: clients = [], isLoading: isLoadingClients } = useQuery({
@@ -495,15 +496,20 @@ export default function Clients() {
   })
 
   const markFiadoPaidMutation = useMutation({
-    mutationFn: async ({ id, method }) => {
-      const { error } = await supabase.from('fiados').update({ paid: true, notes: method }).eq('id', id)
+    mutationFn: async ({ id, method, payAmount, totalAmount }) => {
+      const isFullPayment = payAmount >= totalAmount
+      const updates = isFullPayment
+        ? { paid: true, notes: `Cobrado con ${method}` }
+        : { amount: totalAmount - payAmount, notes: `Abono ${method}: ${fmtMoney(payAmount)}` }
+      const { error } = await supabase.from('fiados').update(updates).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: (_, { payAmount, totalAmount }) => {
       queryClient.invalidateQueries({ queryKey: ['client-fiados', selectedClientId] })
       queryClient.invalidateQueries({ queryKey: ['fiados'] })
-      toast.success('Fiado cobrado')
+      toast.success(payAmount >= totalAmount ? 'Fiado cobrado' : 'Abono registrado')
       setFiadoPayModal(null)
+      setFiadoPayAmount('')
     },
     onError: (err) => toast.error(err.message || 'No se pudo cobrar el fiado'),
   })
@@ -987,7 +993,7 @@ export default function Clients() {
                             </div>
                             <p className="text-base font-bold text-amber-700 shrink-0">{fmtMoney(f.amount)}</p>
                             <button
-                              onClick={() => { setFiadoPayModal(f); setFiadoPayMethod('efectivo') }}
+                              onClick={() => { setFiadoPayModal(f); setFiadoPayMethod('efectivo'); setFiadoPayAmount(String(f.amount)) }}
                               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shrink-0"
                             >
                               Cobrar
@@ -1021,41 +1027,83 @@ export default function Clients() {
       </div>
 
       {/* ── Modal: cobrar fiado desde cliente ─────────────────────────────── */}
-      {fiadoPayModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-5 shadow-xl">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-widest">Cobrar fiado</p>
-              <h3 className="text-xl font-bold mt-1">{fiadoPayModal.customer_name}</h3>
-              <p className="text-2xl font-bold text-zinc-900 mt-1">{fmtMoney(fiadoPayModal.amount)}</p>
-              {fiadoPayModal.notes && <p className="text-xs text-gray-400 mt-1">{fiadoPayModal.notes}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Método de cobro</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[{ key: 'efectivo', label: '💵 Efectivo' }, { key: 'mercadopago', label: '📱 Mercado Pago' }].map(({ key, label }) => (
-                  <button key={key} onClick={() => setFiadoPayMethod(key)}
-                    className={`py-3 rounded-xl text-sm font-semibold transition-colors ${fiadoPayMethod === key ? 'bg-zinc-900 text-white' : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'}`}>
-                    {label}
-                  </button>
-                ))}
+      {fiadoPayModal && (() => {
+        const totalAmount = fiadoPayModal.amount
+        const payAmount = Math.min(Number(fiadoPayAmount) || 0, totalAmount)
+        const remaining = totalAmount - payAmount
+        const isPartial = payAmount > 0 && payAmount < totalAmount
+        const isFull = payAmount >= totalAmount
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-5 shadow-xl">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Cobrar fiado</p>
+                <h3 className="text-xl font-bold mt-1">{fiadoPayModal.customer_name}</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Deuda total: <span className="font-bold text-amber-600">{fmtMoney(totalAmount)}</span></p>
+                {fiadoPayModal.notes && <p className="text-xs text-gray-400 mt-1">{fiadoPayModal.notes}</p>}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Monto a cobrar</p>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalAmount}
+                  value={fiadoPayAmount}
+                  onChange={e => setFiadoPayAmount(e.target.value)}
+                  placeholder={String(totalAmount)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
+                />
+                {isPartial && (
+                  <p className="text-xs text-amber-600 mt-1.5 text-center">
+                    Pago parcial · Quedará pendiente: <strong>{fmtMoney(remaining)}</strong>
+                  </p>
+                )}
+                {isFull && (
+                  <p className="text-xs text-emerald-600 mt-1.5 text-center font-semibold">Pago total — el fiado quedará saldado</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Método de cobro</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: 'efectivo',      label: '💵', name: 'Efectivo' },
+                    { key: 'transferencia', label: '🏦', name: 'Transf.' },
+                    { key: 'qr',            label: '📱', name: 'QR' },
+                    { key: 'tarjeta',       label: '💳', name: 'Tarjeta' },
+                    { key: 'mercadopago',   label: '🟦', name: 'Mercado Pago' },
+                  ].map(({ key, label, name }) => (
+                    <button key={key} onClick={() => setFiadoPayMethod(key)}
+                      className={`py-2.5 rounded-xl text-xs font-semibold transition-colors flex flex-col items-center gap-0.5 ${fiadoPayMethod === key ? 'bg-zinc-900 text-white' : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'}`}>
+                      <span className="text-base">{label}</span>
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => { setFiadoPayModal(null); setFiadoPayAmount('') }}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => markFiadoPaidMutation.mutate({
+                    id: fiadoPayModal.id,
+                    method: fiadoPayMethod,
+                    payAmount: payAmount || totalAmount,
+                    totalAmount,
+                  })}
+                  disabled={markFiadoPaidMutation.isPending || (!fiadoPayAmount && fiadoPayAmount !== '')}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-40">
+                  {isPartial ? `Registrar abono ${fmtMoney(payAmount)}` : 'Confirmar cobro'}
+                </button>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => setFiadoPayModal(null)}
-                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button
-                onClick={() => markFiadoPaidMutation.mutate({ id: fiadoPayModal.id, method: fiadoPayMethod })}
-                disabled={markFiadoPaidMutation.isPending}
-                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-40">
-                Confirmar cobro
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── Modal: nuevo / editar cliente ─────────────────────────────────── */}
       {showClientModal && (

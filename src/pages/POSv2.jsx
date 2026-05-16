@@ -164,7 +164,7 @@ export default function POSv2() {
   const categories = useMemo(() => [...new Set(products.map(p => p.category).filter(Boolean))].sort(), [products])
 
   const filteredProducts = useMemo(() => {
-    const q = searchQuery.toLowerCase()
+    const q = (searchQuery || barcodeInput).toLowerCase()
     return products
       .filter(p => {
         const matchSearch = !q || p.name.toLowerCase().includes(q) || String(p.barcode || '').includes(q)
@@ -172,7 +172,7 @@ export default function POSv2() {
         return matchSearch && matchCat
       })
       .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-  }, [products, searchQuery, categoryFilter])
+  }, [products, searchQuery, barcodeInput, categoryFilter])
 
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
   const surchargeMultiplier = (isNocturnalSurcharge && !surchargeBypassed) ? 1.10 : 1

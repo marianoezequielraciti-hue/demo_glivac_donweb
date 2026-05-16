@@ -17,7 +17,7 @@ const INITIAL_FORM = {
   active: true, allow_negative_stock: true,
 }
 
-const CATEGORIES = ['Fiambres', 'Quesos', 'Lácteos', 'Bebidas', 'Panificados', 'Verdulería', 'Limpieza', 'Otros']
+const CATEGORIES = ['Fiambres', 'Quesos', 'Lácteos', 'Bebidas', 'Panificados', 'Verdulería', 'Limpieza', 'Gomería', 'Otros']
 const UNITS = ['kg', 'g', 'unidad', 'litro', 'ml', 'docena', 'paquete']
 const formatExpiry = (value) => {
   if (!value) return '-'

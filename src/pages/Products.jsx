@@ -13,6 +13,7 @@ import { useStoreGuard } from '@/hooks/useStoreGuard.jsx'
 const INITIAL_FORM = {
   barcode: '', name: '', category: 'Otros', unit: 'unidad',
   current_stock: 0, min_stock: 0, purchase_price: 0, sale_price: 0,
+  price_cash: '', price_card: '', price_transfer: '',
   expiration_date: '',
   active: true, allow_negative_stock: true,
 }
@@ -190,6 +191,9 @@ export default function Products() {
         min_stock: product.min_stock || 0,
         purchase_price: product.purchase_price || 0,
         sale_price: product.sale_price || 0,
+        price_cash: product.price_cash ?? '',
+        price_card: product.price_card ?? '',
+        price_transfer: product.price_transfer ?? '',
         markup_pct: product.purchase_price && product.sale_price
           ? +((product.sale_price / product.purchase_price - 1) * 100).toFixed(1)
           : '',
@@ -237,6 +241,9 @@ export default function Products() {
       min_stock: parseFloat(form.min_stock) || 0,
       purchase_price: parseFloat(form.purchase_price) || 0,
       sale_price: parseFloat(form.sale_price) || 0,
+      price_cash: form.price_cash !== '' && form.price_cash !== null ? parseFloat(form.price_cash) : null,
+      price_card: form.price_card !== '' && form.price_card !== null ? parseFloat(form.price_card) : null,
+      price_transfer: form.price_transfer !== '' && form.price_transfer !== null ? parseFloat(form.price_transfer) : null,
       expiration_date: form.expiration_date || null,
       ...(!editingProduct && newStoreId ? { store_id: newStoreId } : {}),
     }
@@ -632,6 +639,39 @@ export default function Products() {
                     return `+${((sale / cost - 1) * 100).toFixed(1)}% sobre costo`
                   })()}
                 </div>
+              </div>
+            </div>
+            <div className="pt-1">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Precios por método de pago</p>
+              <p className="text-[11px] text-gray-400 mb-3">Dejá vacío para usar el precio de venta base en ese método.</p>
+              <div className="grid grid-cols-3 gap-3">
+                <label className="space-y-1 text-xs text-gray-500">
+                  💵 Efectivo
+                  <input
+                    type="number" min="0" step="0.01" placeholder={form.sale_price || '—'}
+                    value={form.price_cash}
+                    onChange={e => setForm(prev => ({ ...prev, price_cash: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2"
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-gray-500">
+                  💳 Tarjeta
+                  <input
+                    type="number" min="0" step="0.01" placeholder={form.sale_price || '—'}
+                    value={form.price_card}
+                    onChange={e => setForm(prev => ({ ...prev, price_card: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2"
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-gray-500">
+                  🏦 Transf./QR
+                  <input
+                    type="number" min="0" step="0.01" placeholder={form.sale_price || '—'}
+                    value={form.price_transfer}
+                    onChange={e => setForm(prev => ({ ...prev, price_transfer: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2"
+                  />
+                </label>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

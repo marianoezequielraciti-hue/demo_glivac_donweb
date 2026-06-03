@@ -58,6 +58,8 @@ export default function POSv2() {
   const [promotions, setPromotions] = useState(() => loadPromotions())
   const [showMobileCart, setShowMobileCart] = useState(false)
   const [openShiftWarning, setOpenShiftWarning] = useState(null) // { id, cajero, inicio }
+  const [adjustmentType, setAdjustmentType] = useState('none') // 'none' | 'recargo' | 'descuento'
+  const [adjustmentPct, setAdjustmentPct] = useState('')
 
   const { data: products = [] } = useQuery({
     queryKey: ['products', effectiveStoreId],
@@ -108,6 +110,20 @@ export default function POSv2() {
     if (screen === 'pos') barcodeRef.current?.focus()
     if (screen === 'apertura') montoRef.current?.focus()
   }, [screen])
+
+  // Re-pricear el carrito cuando cambia el método de pago
+  useEffect(() => {
+    if (!cart.length || !products.length) return
+    setCart(prev => prev.map(item => {
+      const product = products.find(p => p.id === item.product_id)
+      if (!product) return item
+      const basePrice = priceForMethod(product, paymentMethod)
+      const newPrice = Math.round(basePrice * surchargeMultiplier)
+      if (newPrice === item.unit_price) return item
+      return { ...item, unit_price: newPrice, subtotal: item.quantity * newPrice }
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod])
 
   useEffect(() => {
     const refresh = () => setPromotions(loadPromotions())
@@ -178,7 +194,20 @@ export default function POSv2() {
   }, [products, searchQuery, barcodeInput, categoryFilter])
 
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
+  const adjustmentMultiplier = adjustmentType === 'recargo'
+    ? 1 + (parseFloat(adjustmentPct) || 0) / 100
+    : adjustmentType === 'descuento'
+      ? 1 - (parseFloat(adjustmentPct) || 0) / 100
+      : 1
+  const adjustedTotal = Math.round(cartTotal * adjustmentMultiplier * 100) / 100
   const surchargeMultiplier = (isNocturnalSurcharge && !surchargeBypassed) ? 1.10 : 1
+
+  const priceForMethod = (product, method) => {
+    if (method === 'efectivo' && product.price_cash) return product.price_cash
+    if (method === 'tarjeta' && product.price_card) return product.price_card
+    if ((method === 'transferencia' || method === 'qr') && product.price_transfer) return product.price_transfer
+    return product.sale_price
+  }
 
   const addToCart = (product, qty = 1) => {
     if (!product) return
@@ -189,7 +218,8 @@ export default function POSv2() {
         return
       }
     }
-    const effectivePrice = Math.round(product.sale_price * surchargeMultiplier)
+    const basePrice = priceForMethod(product, splitMode ? paymentMethod : paymentMethod)
+    const effectivePrice = Math.round(basePrice * surchargeMultiplier)
     setCart(prev => {
       const existing = prev.find(i => i.product_id === product.id)
       if (existing) {
@@ -346,6 +376,8 @@ export default function POSv2() {
       setShowFiadoModal(false)
       setPendingSale(null)
       setShowMobileCart(false)
+      setAdjustmentType('none')
+      setAdjustmentPct('')
       toast.success('Venta registrada')
     },
     onError: () => toast.error('Error al registrar la venta'),
@@ -353,7 +385,7 @@ export default function POSv2() {
 
   const handleConfirmSale = () => {
     if (!cart.length || !turno) return
-    const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
+    const total = adjustedTotal
     const cartItems = [...cart]
 
     if (splitMode) {
@@ -1119,8 +1151,8 @@ export default function POSv2() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 shrink-0">{PAYMENT_LABELS[splitMethod2]}</span>
                       <span className="flex-1 px-3 py-1.5 border border-gray-100 rounded-lg text-sm font-bold text-right bg-gray-50 text-gray-700">
-                        {splitAmount1 && Number(splitAmount1) > 0 && Number(splitAmount1) < cartTotal
-                          ? `$ ${(cartTotal - Number(splitAmount1)).toLocaleString('es-AR')}`
+                        {splitAmount1 && Number(splitAmount1) > 0 && Number(splitAmount1) < adjustedTotal
+                          ? `$ ${(adjustedTotal - Number(splitAmount1)).toLocaleString('es-AR')}`
                           : '—'}
                       </span>
                     </div>
@@ -1128,10 +1160,58 @@ export default function POSv2() {
                 </div>
               )}
 
+              {/* Recargo / Descuento */}
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-3 gap-1">
+                  {[['none', 'Sin ajuste'], ['recargo', '% Recargo'], ['descuento', '% Descuento']].map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => { setAdjustmentType(val); if (val === 'none') setAdjustmentPct('') }}
+                      className={`py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
+                        adjustmentType === val
+                          ? val === 'recargo' ? 'bg-orange-500 text-white' : val === 'descuento' ? 'bg-emerald-600 text-white' : 'bg-zinc-900 text-white'
+                          : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {adjustmentType !== 'none' && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={adjustmentPct}
+                      onChange={e => setAdjustmentPct(e.target.value)}
+                      placeholder="0"
+                      className={`flex-1 px-3 py-1.5 border rounded-lg text-sm font-bold text-right focus:outline-none focus:ring-1 ${
+                        adjustmentType === 'recargo' ? 'border-orange-200 focus:ring-orange-400/30' : 'border-emerald-200 focus:ring-emerald-400/30'
+                      }`}
+                    />
+                    <span className={`text-sm font-bold shrink-0 ${adjustmentType === 'recargo' ? 'text-orange-600' : 'text-emerald-600'}`}>%</span>
+                  </div>
+                )}
+              </div>
+
               {/* Total */}
               <div className="flex items-center justify-between px-1">
                 <span className="text-sm text-gray-500">Total</span>
-                <span className="text-2xl font-bold text-gray-900">{fmtMoney(cartTotal)}</span>
+                <div className="text-right">
+                  {adjustmentType !== 'none' && parseFloat(adjustmentPct) > 0 && (
+                    <p className="text-xs text-gray-400 line-through">{fmtMoney(cartTotal)}</p>
+                  )}
+                  <span className={`text-2xl font-bold ${adjustmentType === 'recargo' && parseFloat(adjustmentPct) > 0 ? 'text-orange-600' : adjustmentType === 'descuento' && parseFloat(adjustmentPct) > 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                    {fmtMoney(adjustedTotal)}
+                  </span>
+                  {adjustmentType !== 'none' && parseFloat(adjustmentPct) > 0 && (
+                    <p className={`text-[10px] font-semibold ${adjustmentType === 'recargo' ? 'text-orange-500' : 'text-emerald-500'}`}>
+                      {adjustmentType === 'recargo' ? '+' : '-'}{adjustmentPct}%
+                    </p>
+                  )}
+                </div>
               </div>
 
               <button
@@ -1169,7 +1249,7 @@ export default function POSv2() {
           <ShoppingCart className="w-5 h-5" />
           {cart.length > 0 ? `${cart.length} ítem${cart.length !== 1 ? 's' : ''}` : 'Carrito vacío'}
         </span>
-        <span className="text-lg">{cart.length > 0 ? fmtMoney(cartTotal) : ''}</span>
+        <span className="text-lg">{cart.length > 0 ? fmtMoney(adjustedTotal) : ''}</span>
       </button>
     </div>
 

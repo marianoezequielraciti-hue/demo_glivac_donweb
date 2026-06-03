@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { fetchApi } from '@/lib/api'
 import { createAdminUser, listAdminUsers, updateAdminUser, deleteAdminUser } from '@/lib/adminApi'
 import { ROLE_OPTIONS, roleRequiresStore, getDefaultRoleForDemo } from '@/lib/roles'
 import { exportMultiSheet, PRODUCT_COLUMNS, SALE_COLUMNS, PURCHASE_COLUMNS, EXPENSE_COLUMNS } from '@/lib/xlsxUtils'
 import { toast } from 'sonner'
-import { Users, Database, Download, Trash2, Loader2, KeyRound, X } from 'lucide-react'
+import { Users, Database, Download, Trash2, Loader2, KeyRound, X, Lock, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useStoreFilter } from '@/hooks/useStoreFilter'
 
 export default function Settings() {
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const { stores } = useStoreFilter()
   const [inviteUsername, setInviteUsername] = useState('')
   const [inviteName, setInviteName] = useState('')
@@ -38,6 +39,16 @@ export default function Settings() {
   // delete user confirm
   const [deleteUserModal, setDeleteUserModal] = useState(null) // profile object
   const [deletingUser, setDeletingUser] = useState(false)
+
+  // Mi cuenta
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [savedRecoveryEmail, setSavedRecoveryEmail] = useState('')
+  const [savingRecoveryEmail, setSavingRecoveryEmail] = useState(false)
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [showCurrentPw, setShowCurrentPw] = useState(false)
+  const [showNewPw, setShowNewPw] = useState(false)
+  const [savingPw, setSavingPw] = useState(false)
 
   const { data: counts = { products: 0, sales: 0, purchases: 0, expenses: 0 } } = useQuery({
     queryKey: ['settings-counts'],
@@ -70,6 +81,50 @@ export default function Settings() {
   useEffect(() => {
     loadProfiles()
   }, [loadProfiles])
+
+  useEffect(() => {
+    if (!user) return
+    fetchApi('/api/auth/me', { method: 'GET' })
+      .then(data => {
+        const email = data.recovery_email || ''
+        setRecoveryEmail(email)
+        setSavedRecoveryEmail(email)
+      })
+      .catch(() => {})
+  }, [user])
+
+  const handleSaveRecoveryEmail = async () => {
+    if (!recoveryEmail || !recoveryEmail.includes('@')) {
+      toast.error('Ingresá un email válido')
+      return
+    }
+    setSavingRecoveryEmail(true)
+    try {
+      await fetchApi('/api/auth/me/recovery-email', { method: 'PATCH', body: { recovery_email: recoveryEmail } })
+      setSavedRecoveryEmail(recoveryEmail)
+      toast.success('Email de recuperación actualizado')
+    } catch (err) {
+      toast.error(err.message || 'Error al guardar')
+    } finally {
+      setSavingRecoveryEmail(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!currentPw || !newPw) { toast.error('Completá ambos campos'); return }
+    if (newPw.length < 6) { toast.error('La nueva contraseña debe tener al menos 6 caracteres'); return }
+    setSavingPw(true)
+    try {
+      await fetchApi('/api/auth/me/password', { method: 'PATCH', body: { current_password: currentPw, new_password: newPw } })
+      toast.success('Contraseña actualizada')
+      setCurrentPw('')
+      setNewPw('')
+    } catch (err) {
+      toast.error(err.message || 'Error al cambiar contraseña')
+    } finally {
+      setSavingPw(false)
+    }
+  }
 
   const handleInvite = async () => {
     if (!inviteUsername) {
@@ -295,10 +350,80 @@ export default function Settings() {
     <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
-        <p className="text-gray-500 text-sm mt-1">Administración de datos y accesos</p>
+        <p className="text-gray-500 text-sm mt-1">Gestión de usuarios y accesos</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      {/* Mi cuenta */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+        <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Lock className="w-4 h-4" /> Mi cuenta</h2>
+
+        {/* Email de recuperación */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Email de recuperación</p>
+          <p className="text-xs text-gray-400">Se usa para recibir el código cuando olvidás tu contraseña.</p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={recoveryEmail}
+              onChange={e => setRecoveryEmail(e.target.value)}
+              placeholder="tucorreo@ejemplo.com"
+              className="flex-1 h-10 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button
+              onClick={handleSaveRecoveryEmail}
+              disabled={savingRecoveryEmail}
+              className="px-4 h-10 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
+            >
+              {savingRecoveryEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Actualizar
+            </button>
+          </div>
+          {savedRecoveryEmail && (
+            <p className="text-xs text-emerald-600 font-medium">✓ Configurado: {savedRecoveryEmail}</p>
+          )}
+        </div>
+
+        {/* Cambiar contraseña */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Cambiar mi contraseña</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="relative">
+              <input
+                type={showCurrentPw ? 'text' : 'password'}
+                value={currentPw}
+                onChange={e => setCurrentPw(e.target.value)}
+                placeholder="Contraseña actual"
+                className="w-full h-10 px-3 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <button type="button" onClick={() => setShowCurrentPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type={showNewPw ? 'text' : 'password'}
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+                placeholder="Nueva contraseña (mín. 6)"
+                className="w-full h-10 px-3 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <button type="button" onClick={() => setShowNewPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={handleChangePassword}
+            disabled={savingPw}
+            className="px-5 h-10 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-colors"
+          >
+            {savingPw ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+            Cambiar contraseña
+          </button>
+        </div>
+      </div>
+
+      {isAdmin && <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Users className="w-4 h-4" /> Gestión de empleados</h2>
         <p className="text-sm text-gray-500">Creá accesos para empleados con un código de acceso (sin email). Los empleados inician sesión con su código y contraseña.</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -347,7 +472,7 @@ export default function Settings() {
             <p>Contraseña: <strong>{lastCredentials.password}</strong></p>
           </div>
         )}
-      </div>
+      </div>}
 
       {profiles.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
@@ -498,7 +623,7 @@ export default function Settings() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      {isAdmin && <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Database className="w-4 h-4" /> Resumen de la base</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
@@ -514,9 +639,9 @@ export default function Settings() {
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-3 text-center">Total: {totalRecords} registros</p>
-      </div>
+      </div>}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      {isAdmin && <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Download className="w-4 h-4" /> Exportar base de datos</h2>
         <p className="text-sm text-gray-500 mb-4">Descargá un Excel con productos, ventas, compras y gastos.</p>
         <div className="bg-zinc-50 rounded-lg p-3 text-sm text-zinc-800 mb-4">
@@ -530,9 +655,9 @@ export default function Settings() {
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {exporting ? 'Exportando...' : 'Descargar copia de seguridad'}
         </button>
-      </div>
+      </div>}
 
-      <div className="bg-white rounded-xl border border-red-200 p-6">
+      {isAdmin && <div className="bg-white rounded-xl border border-red-200 p-6">
         <h2 className="font-semibold text-red-700 flex items-center gap-2"><Trash2 className="w-4 h-4" /> Zona peligrosa</h2>
         <p className="text-sm text-gray-500 mb-4">Esta acción elimina TODO registro.</p>
         <input
@@ -548,7 +673,7 @@ export default function Settings() {
         >
           {deleting && <Loader2 className="w-4 h-4 animate-spin" />} Eliminar todos los datos
         </button>
-      </div>
+      </div>}
     </div>
   )
 }

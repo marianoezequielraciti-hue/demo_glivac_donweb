@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { to: '/clientes', label: 'Clientes', adminOnly: false },
   { to: '/reportes', label: 'Reportes', adminOnly: false },
   { to: '/scanner', label: 'Scanner', adminOnly: false },
-  { to: '/config', label: 'Config', adminOnly: true },
+  { to: '/config', label: 'Config', adminOnly: false },
 ]
 
 export default function Layout() {

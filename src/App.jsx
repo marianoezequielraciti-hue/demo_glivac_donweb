@@ -14,6 +14,7 @@ import InvoiceScanner from '@/pages/InvoiceScanner'
 import Settings from '@/pages/Settings'
 import Fiados from '@/pages/Fiados'
 import Clients from '@/pages/Clients'
+import ResetPassword from '@/pages/ResetPassword'
 import { useAuth } from '@/hooks/useAuth'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
@@ -38,6 +39,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="reset-password" element={<ResetPassword />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route index element={<Navigate to="/pos" replace />} />
@@ -51,9 +53,7 @@ export default function App() {
               <Route path="fiados"    element={<Wrap><Fiados /></Wrap>} />
               <Route path="clientes"  element={<Wrap><Clients /></Wrap>} />
               <Route path="reportes"  element={<Wrap><Reports /></Wrap>} />
-              <Route element={<AdminRoute />}>
-                <Route path="config" element={<Wrap><Settings /></Wrap>} />
-              </Route>
+              <Route path="config" element={<Wrap><Settings /></Wrap>} />
             </Route>
           </Route>
         </Routes>

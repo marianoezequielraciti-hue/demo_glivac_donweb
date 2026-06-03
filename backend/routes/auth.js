@@ -1,10 +1,22 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuid } from 'uuid';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import pool from '../db.js';
 import { signToken, authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
+
+function createMailTransport() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER || 'sglivac@gmail.com',
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -37,7 +49,7 @@ router.post('/login', async (req, res) => {
       store_name: row.store_name || null,
     };
 
-    const token = signToken({ sub: user.id, email: user.email, role: user.role });
+    const token = signToken({ sub: user.id, email: user.email, role: user.role, store_id: user.store_id });
     res.json({ token, user });
   } catch (err) {
     console.error('login error', err);
@@ -49,7 +61,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT u.id, u.email, p.role, p.username, p.store_id, s.name AS store_name ' +
+      'SELECT u.id, u.email, p.role, p.username, p.store_id, p.recovery_email, s.name AS store_name ' +
       'FROM users u ' +
       'LEFT JOIN user_profiles p ON p.id = u.id ' +
       'LEFT JOIN stores s ON s.id = p.store_id ' +
@@ -59,6 +71,147 @@ router.get('/me', authMiddleware, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json(rows[0]);
   } catch (err) {
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// PATCH /api/auth/me/recovery-email  — actualizar email de recuperación propio
+router.patch('/me/recovery-email', authMiddleware, async (req, res) => {
+  const { recovery_email } = req.body || {};
+  if (!recovery_email || !recovery_email.includes('@')) {
+    return res.status(400).json({ error: 'Email inválido' });
+  }
+  try {
+    await pool.query(
+      'UPDATE user_profiles SET recovery_email = ? WHERE id = ?',
+      [recovery_email.toLowerCase().trim(), req.user.sub]
+    );
+    res.json({ ok: true, recovery_email: recovery_email.toLowerCase().trim() });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// PATCH /api/auth/me/password  — cambiar contraseña propia
+router.patch('/me/password', authMiddleware, async (req, res) => {
+  const { current_password, new_password } = req.body || {};
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
+  }
+  if (new_password.length < 6) {
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+  }
+  try {
+    const [[row]] = await pool.query(
+      'SELECT encrypted_password FROM users WHERE id = ?',
+      [req.user.sub]
+    );
+    if (!row) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const valid = await bcrypt.compare(current_password, row.encrypted_password);
+    if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+
+    const hash = await bcrypt.hash(new_password, 12);
+    await pool.query('UPDATE users SET encrypted_password = ? WHERE id = ?', [hash, req.user.sub]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// POST /api/auth/forgot-password  — envía email con link de recuperación
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email requerido' });
+
+  try {
+    // Buscar usuario por recovery_email o email principal
+    const [rows] = await pool.query(
+      'SELECT u.id, u.email, p.recovery_email ' +
+      'FROM users u ' +
+      'LEFT JOIN user_profiles p ON p.id = u.id ' +
+      'WHERE u.email = ? OR p.recovery_email = ? LIMIT 1',
+      [email.toLowerCase().trim(), email.toLowerCase().trim()]
+    );
+
+    // Siempre responder OK para no revelar si el email existe
+    if (!rows[0]) return res.json({ ok: true });
+
+    const user = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    // Invalidar tokens previos del usuario
+    await pool.query(
+      'UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0',
+      [user.id]
+    );
+
+    await pool.query(
+      'INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES (UUID(), ?, ?, ?)',
+      [user.id, token, expiresAt]
+    );
+
+    const appUrl = process.env.APP_URL || 'https://glivac.online';
+    const resetLink = `${appUrl}/reset-password?token=${token}`;
+
+    if (process.env.GMAIL_APP_PASSWORD) {
+      const transport = createMailTransport();
+      await transport.sendMail({
+        from: `"Glivac" <${process.env.GMAIL_USER || 'sglivac@gmail.com'}>`,
+        to: email.toLowerCase().trim(),
+        subject: 'Recuperar contraseña — Glivac',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#18181b">Recuperar contraseña</h2>
+            <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en Glivac.</p>
+            <p>Hacé clic en el siguiente botón para crear una nueva contraseña. El enlace es válido por <strong>1 hora</strong>.</p>
+            <a href="${resetLink}"
+               style="display:inline-block;margin:16px 0;padding:12px 24px;background:#18181b;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
+              Restablecer contraseña
+            </a>
+            <p style="font-size:12px;color:#71717a">Si no solicitaste este cambio, podés ignorar este correo.</p>
+            <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0"/>
+            <p style="font-size:12px;color:#a1a1aa">Glivac — Sistema de Gestión</p>
+          </div>
+        `,
+      });
+    } else {
+      // En desarrollo sin credenciales configuradas, loguear el link
+      console.log('[forgot-password] Reset link:', resetLink);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('forgot-password error', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// POST /api/auth/reset-password  — restablecer contraseña con token
+router.post('/reset-password', async (req, res) => {
+  const { token, new_password } = req.body || {};
+  if (!token || !new_password) return res.status(400).json({ error: 'Token y nueva contraseña requeridos' });
+  if (new_password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, user_id, expires_at, used FROM password_reset_tokens WHERE token = ? LIMIT 1',
+      [token]
+    );
+
+    const row = rows[0];
+    if (!row) return res.status(400).json({ error: 'Token inválido o expirado' });
+    if (row.used) return res.status(400).json({ error: 'Este enlace ya fue utilizado' });
+    if (new Date(row.expires_at) < new Date()) return res.status(400).json({ error: 'El enlace expiró. Solicitá uno nuevo' });
+
+    const hash = await bcrypt.hash(new_password, 12);
+    await pool.query('UPDATE users SET encrypted_password = ? WHERE id = ?', [hash, row.user_id]);
+    await pool.query('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', [row.id]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('reset-password error', err);
     res.status(500).json({ error: 'Error interno' });
   }
 });
@@ -89,7 +242,6 @@ router.post('/users', authMiddleware, async (req, res) => {
   if (!effectiveUsername && !email) return res.status(400).json({ error: 'Se requiere código de acceso o email' });
   if (!password) return res.status(400).json({ error: 'La contraseña es obligatoria' });
 
-  // Si no hay email, generar uno interno basado en el username
   const effectiveEmail = email ? email.toLowerCase() : `${effectiveUsername.toLowerCase()}@glivac.internal`;
   const effectiveStoreId = storeId || store_id || null;
 
@@ -150,7 +302,6 @@ router.delete('/users/:id', authMiddleware, async (req, res) => {
 });
 
 // POST /api/auth/setup-first-admin
-// Solo funciona si no existe ningún usuario en la base. Se auto-deshabilita.
 router.post('/setup-first-admin', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });

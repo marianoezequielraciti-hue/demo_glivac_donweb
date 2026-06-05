@@ -868,7 +868,7 @@ export default function POSv2() {
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_480px] gap-4">
+      <div className="grid lg:grid-cols-2 gap-4">
         {/* Left: products */}
         <div className="space-y-3">
           {/* Search + barcode + category */}
@@ -1009,7 +1009,7 @@ export default function POSv2() {
               ? 'fixed inset-x-0 bottom-0 z-40 rounded-t-2xl max-h-[90vh] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:rounded-2xl'
               : 'hidden lg:flex rounded-2xl'
           }`}
-          style={!showMobileCart ? { maxHeight: 'calc(100vh - 160px)', position: 'sticky', top: '80px' } : undefined}
+          style={!showMobileCart ? { maxHeight: 'calc(100vh - 90px)', position: 'sticky', top: '80px' } : undefined}
         >
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1026,7 +1026,7 @@ export default function POSv2() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
+          <div className="overflow-y-auto p-4 space-y-2" style={{ minHeight: '420px', maxHeight: 'calc(100vh - 420px)' }}>
             {cart.length === 0 && (
               <div className="h-full flex items-center justify-center text-sm text-gray-400 text-center py-8">
                 Tocá un producto<br/>para agregarlo

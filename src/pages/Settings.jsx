@@ -74,7 +74,8 @@ export default function Settings() {
       const { users } = await listAdminUsers()
       setProfiles(users || [])
     } catch {
-      toast.error('No se pudo cargar la lista de usuarios')
+      // Silently ignore — can happen for owner/super-admin roles or when
+      // the endpoint is temporarily unavailable; not a user-facing error.
     }
   }, [])
 

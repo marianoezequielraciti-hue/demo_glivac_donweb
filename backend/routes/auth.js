@@ -225,7 +225,7 @@ router.post('/reset-password', async (req, res) => {
 
 // GET /api/auth/users  (solo admin)
 router.get('/users', authMiddleware, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+  if (!['admin', 'owner'].includes(req.user.role)) return res.status(403).json({ error: 'Acceso denegado' });
   try {
     const [rows] = await pool.query(
       'SELECT u.id, u.email, u.created_at, p.role, p.username, p.store_id, s.name AS store_name ' +
@@ -242,7 +242,7 @@ router.get('/users', authMiddleware, async (req, res) => {
 
 // POST /api/auth/users  (crear usuario — solo admin)
 router.post('/users', authMiddleware, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+  if (!['admin', 'owner'].includes(req.user.role)) return res.status(403).json({ error: 'Acceso denegado' });
   const { email, password, role = 'employee', username, displayName, storeId, store_id } = req.body || {};
   const effectiveUsername = username || null;
   const effectiveDisplayName = displayName || username || null;
@@ -271,7 +271,7 @@ router.post('/users', authMiddleware, async (req, res) => {
 
 // PATCH /api/auth/users/:id  (actualizar rol/store — solo admin)
 router.patch('/users/:id', authMiddleware, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+  if (!['admin', 'owner'].includes(req.user.role)) return res.status(403).json({ error: 'Acceso denegado' });
   const { role, store_id, username, password } = req.body || {};
   const { id } = req.params;
 
@@ -299,7 +299,7 @@ router.patch('/users/:id', authMiddleware, async (req, res) => {
 
 // DELETE /api/auth/users/:id  (solo admin)
 router.delete('/users/:id', authMiddleware, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+  if (!['admin', 'owner'].includes(req.user.role)) return res.status(403).json({ error: 'Acceso denegado' });
   try {
     await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
     res.json({ ok: true });

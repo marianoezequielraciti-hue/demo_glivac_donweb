@@ -121,21 +121,28 @@ router.patch('/me/password', authMiddleware, async (req, res) => {
 
 // POST /api/auth/forgot-password  — envía email con link de recuperación
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body || {};
-  if (!email) return res.status(400).json({ error: 'Email requerido' });
+  const { username, recovery_email } = req.body || {};
+  if (!username || !recovery_email) {
+    return res.status(400).json({ error: 'Usuario y email de recuperación son requeridos' });
+  }
+
+  const identifier = username.toLowerCase().trim();
+  const recEmail   = recovery_email.toLowerCase().trim();
 
   try {
-    // Buscar usuario por recovery_email o email principal
+    // Buscar usuario por (username o email principal) Y que el recovery_email coincida
     const [rows] = await pool.query(
-      'SELECT u.id, u.email, p.recovery_email ' +
+      'SELECT u.id, p.recovery_email ' +
       'FROM users u ' +
       'LEFT JOIN user_profiles p ON p.id = u.id ' +
-      'WHERE u.email = ? OR p.recovery_email = ? LIMIT 1',
-      [email.toLowerCase().trim(), email.toLowerCase().trim()]
+      'WHERE (p.username = ? OR u.email = ?) AND p.recovery_email = ? LIMIT 1',
+      [identifier, identifier, recEmail]
     );
 
-    // Siempre responder OK para no revelar si el email existe
-    if (!rows[0]) return res.json({ ok: true });
+    if (!rows[0]) {
+      // No revelar si el usuario/email existe, pero sí indicar que no coinciden
+      return res.status(400).json({ error: 'El usuario o el email de recuperación no son correctos' });
+    }
 
     const user = rows[0];
     const token = crypto.randomBytes(32).toString('hex');
@@ -159,7 +166,7 @@ router.post('/forgot-password', async (req, res) => {
       const transport = createMailTransport();
       await transport.sendMail({
         from: `"Glivac" <${process.env.GMAIL_USER || 'sglivac@gmail.com'}>`,
-        to: email.toLowerCase().trim(),
+        to: recEmail,
         subject: 'Recuperar contraseña — Glivac',
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
@@ -176,15 +183,15 @@ router.post('/forgot-password', async (req, res) => {
           </div>
         `,
       });
+      console.log(`[forgot-password] Email enviado a ${recEmail}`);
     } else {
-      // En desarrollo sin credenciales configuradas, loguear el link
-      console.log('[forgot-password] Reset link:', resetLink);
+      console.log('[forgot-password] GMAIL_APP_PASSWORD no configurado. Reset link:', resetLink);
     }
 
     res.json({ ok: true });
   } catch (err) {
     console.error('forgot-password error', err);
-    res.status(500).json({ error: 'Error interno' });
+    res.status(500).json({ error: 'Error al enviar el email. Verificá la configuración de correo.' });
   }
 });
 

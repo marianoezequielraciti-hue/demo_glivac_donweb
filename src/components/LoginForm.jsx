@@ -10,6 +10,7 @@ export default function LoginForm() {
 
   // Forgot password
   const [showForgot, setShowForgot] = useState(false)
+  const [forgotUsername, setForgotUsername] = useState('')
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotDone, setForgotDone] = useState(false)
@@ -27,17 +28,26 @@ export default function LoginForm() {
   const handleForgot = async (e) => {
     e.preventDefault()
     setForgotError('')
+    if (!forgotUsername.trim()) {
+      setForgotError('Ingresá tu usuario')
+      return
+    }
     if (!forgotEmail || !forgotEmail.includes('@')) {
-      setForgotError('Ingresá un email válido')
+      setForgotError('Ingresá un email de recuperación válido')
       return
     }
     setForgotLoading(true)
     try {
-      await fetch('/api/auth/forgot-password', {
+      const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail }),
+        body: JSON.stringify({ username: forgotUsername.trim(), recovery_email: forgotEmail.trim() }),
       })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setForgotError(json.error || 'Error al enviar el email')
+        return
+      }
       setForgotDone(true)
     } catch {
       setForgotError('Error de conexión. Intentá de nuevo.')
@@ -48,6 +58,7 @@ export default function LoginForm() {
 
   const closeForgot = () => {
     setShowForgot(false)
+    setForgotUsername('')
     setForgotEmail('')
     setForgotDone(false)
     setForgotError('')
@@ -123,18 +134,26 @@ export default function LoginForm() {
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">Recuperar contraseña</h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    Ingresá tu email de recuperación y te enviaremos un enlace para restablecer tu contraseña.
+                    Ingresá tu usuario y el email de recuperación vinculado a tu cuenta.
                   </p>
                 </div>
                 <form onSubmit={handleForgot} className="space-y-3">
                   <input
-                    type="email"
-                    value={forgotEmail}
-                    onChange={e => setForgotEmail(e.target.value)}
-                    placeholder="tucorreo@ejemplo.com"
+                    type="text"
+                    value={forgotUsername}
+                    onChange={e => setForgotUsername(e.target.value)}
+                    placeholder="Tu usuario (ej: cajero1)"
                     className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                     autoFocus
+                  />
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    placeholder="Email de recuperación"
+                    className="w-full h-11 px-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                   {forgotError && <p className="text-sm text-red-600">{forgotError}</p>}
                   <div className="flex gap-2">
@@ -160,7 +179,7 @@ export default function LoginForm() {
                 <div className="text-4xl">📬</div>
                 <h3 className="text-lg font-bold text-gray-900">Revisá tu correo</h3>
                 <p className="text-sm text-gray-500">
-                  Si el email <strong>{forgotEmail}</strong> está registrado, recibirás un enlace para restablecer tu contraseña en los próximos minutos.
+                  Enviamos un enlace de recuperación a <strong>{forgotEmail}</strong>. Revisá también la carpeta de spam.
                 </p>
                 <button
                   onClick={closeForgot}

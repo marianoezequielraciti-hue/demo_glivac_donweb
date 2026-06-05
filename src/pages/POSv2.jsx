@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { fetchApi } from '@/lib/api'
 import { formatDateTimeART, fmtMoney, nowART } from '@/components/argentina'
-import { Loader2, Printer, Plus, Minus, X, ShoppingCart, Search, Clock } from 'lucide-react'
+import { Loader2, Printer, Plus, Minus, X, ShoppingCart, Search, Clock, ArrowLeft } from 'lucide-react'
 import { loadPromotions } from '@/lib/promotions'
 import { useAuth } from '@/hooks/useAuth'
 import { useStoreFilter } from '@/hooks/useStoreFilter'
@@ -1011,19 +1011,24 @@ export default function POSv2() {
           }`}
           style={!showMobileCart ? { maxHeight: 'calc(100vh - 90px)', position: 'sticky', top: '80px' } : undefined}
         >
+          {/* Mobile: botón volver prominente */}
+          <button
+            onClick={() => setShowMobileCart(false)}
+            className="lg:hidden w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-zinc-900 text-white active:bg-zinc-800"
+          >
+            <ArrowLeft className="w-5 h-5 shrink-0" />
+            <span className="font-semibold text-sm">Agregar más productos</span>
+          </button>
+
+          {/* Header del carrito (desktop: siempre; mobile: debajo del botón volver) */}
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-4 h-4 text-gray-400" />
               <span className="font-semibold text-gray-900">{cart.length} {cart.length === 1 ? 'ítem' : 'ítems'}</span>
             </div>
-            <div className="flex items-center gap-2">
-              {cart.length > 0 && (
-                <button onClick={() => setCart([])} className="text-xs text-red-500 hover:text-red-700 font-semibold">Vaciar</button>
-              )}
-              <button onClick={() => setShowMobileCart(false)} className="lg:hidden p-1 rounded-lg hover:bg-gray-100">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
+            {cart.length > 0 && (
+              <button onClick={() => setCart([])} className="text-xs text-red-500 hover:text-red-700 font-semibold">Vaciar</button>
+            )}
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">

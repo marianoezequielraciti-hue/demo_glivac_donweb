@@ -35,6 +35,9 @@ body {
 .dark body   { background: #1c1c1e; color: #f5f5f7; }
 .dark #root  { color: #f5f5f7; }
 
+/* Evitar que el browser aplique color azul a <button> en dark mode */
+.dark button { color: inherit; }
+
 /* ── Fondos ──────────────────────────────────────────────────── */
 .dark .bg-white           { background-color: #2c2c2e !important; }
 .dark .bg-white\/85       { background-color: rgba(28,28,30,0.92) !important; }

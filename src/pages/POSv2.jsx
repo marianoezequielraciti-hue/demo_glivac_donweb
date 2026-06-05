@@ -1011,17 +1011,8 @@ export default function POSv2() {
           }`}
           style={!showMobileCart ? { maxHeight: 'calc(100vh - 90px)', position: 'sticky', top: '80px' } : undefined}
         >
-          {/* Mobile: botón volver prominente — shrink-0 para que no desaparezca con muchos ítems */}
-          <button
-            onClick={() => setShowMobileCart(false)}
-            className="lg:hidden shrink-0 w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-zinc-900 text-white active:bg-zinc-800"
-          >
-            <ArrowLeft className="w-5 h-5 shrink-0" />
-            <span className="font-semibold text-sm">Agregar más productos</span>
-          </button>
-
-          {/* Header del carrito (desktop: siempre; mobile: debajo del botón volver) */}
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          {/* Header del carrito */}
+          <div className="shrink-0 p-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-4 h-4 text-gray-400" />
               <span className="font-semibold text-gray-900">{cart.length} {cart.length === 1 ? 'ítem' : 'ítems'}</span>
@@ -1240,21 +1231,33 @@ export default function POSv2() {
       </div>
     </div>
 
-    {/* Mobile floating cart button */}
-    <div className="fixed bottom-0 inset-x-0 p-4 z-20 lg:hidden">
+    {/* Mobile floating cart button — z-50 para estar siempre visible sobre el backdrop */}
+    <div className="fixed bottom-0 inset-x-0 p-4 z-50 lg:hidden">
       <button
-        onClick={() => setShowMobileCart(true)}
+        onClick={() => setShowMobileCart(prev => !prev)}
         className={`w-full py-4 rounded-2xl font-bold flex items-center justify-between px-5 shadow-xl transition-all ${
-          cart.length > 0
+          cart.length > 0 || showMobileCart
             ? 'bg-zinc-900 text-white'
             : 'bg-gray-100 text-gray-400 pointer-events-none'
         }`}
       >
-        <span className="flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5" />
-          {cart.length > 0 ? `${cart.length} ítem${cart.length !== 1 ? 's' : ''}` : 'Carrito vacío'}
-        </span>
-        <span className="text-lg">{cart.length > 0 ? fmtMoney(adjustedTotal) : ''}</span>
+        {showMobileCart ? (
+          <>
+            <span className="flex items-center gap-2">
+              <ArrowLeft className="w-5 h-5" />
+              Agregar más productos
+            </span>
+            <span className="text-sm opacity-70">{cart.length} ítem{cart.length !== 1 ? 's' : ''}</span>
+          </>
+        ) : (
+          <>
+            <span className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5" />
+              {cart.length > 0 ? `${cart.length} ítem${cart.length !== 1 ? 's' : ''}` : 'Carrito vacío'}
+            </span>
+            <span className="text-lg">{cart.length > 0 ? fmtMoney(adjustedTotal) : ''}</span>
+          </>
+        )}
       </button>
     </div>
 

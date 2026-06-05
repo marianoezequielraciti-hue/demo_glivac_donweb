@@ -26,6 +26,14 @@ export const addPromotion = (promotion) => {
   return true
 }
 
+export const removePromotion = (id) => {
+  writeStorage(readStorage().filter(p => p.id !== id))
+}
+
+export const updatePromotion = (id, updates) => {
+  writeStorage(readStorage().map(p => p.id === id ? { ...p, ...updates } : p))
+}
+
 export const clearPromotions = () => {
   writeStorage([])
 }

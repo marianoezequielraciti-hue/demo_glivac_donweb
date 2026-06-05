@@ -156,6 +156,30 @@ body {
 .dark .bg-red-50.text-red-500,
 .dark span.bg-red-50   { background-color: rgba(255,59,48,0.18) !important; }
 
+/* Colores de texto adicionales (Dashboard / Ventas) */
+.dark .text-emerald-800 { color: #30d158 !important; }
+.dark .text-emerald-600 { color: #30d158 !important; }
+.dark .text-red-600     { color: #ff453a !important; }
+.dark .text-red-700     { color: #ff6b63 !important; }
+
+/* Badges de método de pago — 100-level backgrounds */
+.dark .bg-emerald-100 { background-color: rgba(52,199,89,0.20)  !important; }
+.dark .bg-sky-50      { background-color: rgba(10,132,255,0.12) !important; }
+.dark .bg-sky-100     { background-color: rgba(10,132,255,0.20) !important; }
+.dark .text-sky-800   { color: #64d2ff !important; }
+.dark .text-sky-700   { color: #64d2ff !important; }
+.dark .bg-purple-100  { background-color: rgba(175,82,222,0.20) !important; }
+.dark .text-purple-800{ color: #bf5af2 !important; }
+.dark .bg-orange-100  { background-color: rgba(255,149,0,0.20)  !important; }
+.dark .text-orange-800{ color: #ff9f0a !important; }
+.dark .bg-amber-100   { background-color: rgba(255,159,10,0.20) !important; }
+.dark .text-amber-800 { color: #ffd60a !important; }
+
+/* Dashboard: shadow personalizado sobre fondo oscuro */
+.dark .shadow-\[0_2px_12px_rgba\(0\,0\,0\,0\.06\)\] {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.45) !important;
+}
+
 @media print {
   body * { visibility: hidden; }
   #receipt-content, #receipt-content * { visibility: visible; }

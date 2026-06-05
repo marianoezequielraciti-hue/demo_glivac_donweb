@@ -4,8 +4,8 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { exportToXlsx, importFromXlsx, PRODUCT_COLUMNS } from '@/lib/xlsxUtils'
 import { fmtMoney } from '@/components/argentina'
-import { PencilLine, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
-import { loadPromotions } from '@/lib/promotions'
+import { PencilLine, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react'
+import { loadPromotions, removePromotion, updatePromotion } from '@/lib/promotions'
 import { useAuth } from '@/hooks/useAuth'
 import { useStoreFilter } from '@/hooks/useStoreFilter'
 import { useStoreGuard } from '@/hooks/useStoreGuard.jsx'
@@ -87,6 +87,21 @@ export default function Products() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [submitted, setSubmitted] = useState(false)
   const [promotions, setPromotions] = useState(() => loadPromotions())
+  const [editingPromo, setEditingPromo] = useState(null) // { id, name, description }
+
+  const handleDeletePromo = (id) => {
+    if (!window.confirm('¿Eliminar esta promoción?')) return
+    removePromotion(id)
+    setPromotions(loadPromotions())
+  }
+
+  const handleSavePromo = () => {
+    if (!editingPromo?.name?.trim()) { toast.error('El nombre no puede estar vacío'); return }
+    updatePromotion(editingPromo.id, { name: editingPromo.name.trim(), description: editingPromo.description?.trim() || '' })
+    setPromotions(loadPromotions())
+    setEditingPromo(null)
+    toast.success('Promoción actualizada')
+  }
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -408,7 +423,25 @@ export default function Products() {
         <div className="grid gap-3 md:grid-cols-2">
           {promotionsWithDetails.map(promo => (
             <div key={promo.id} className="bg-zinc-50 border border-blue-100 rounded-2xl p-4 space-y-2">
-              <p className="text-xs uppercase tracking-[0.4em] text-blue-500">Promoción sugerida</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs uppercase tracking-[0.4em] text-blue-500">Promoción sugerida</p>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={() => setEditingPromo({ id: promo.id, name: promo.name, description: promo.description || '' })}
+                    className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-500 transition-colors"
+                    title="Editar"
+                  >
+                    <PencilLine className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeletePromo(promo.id)}
+                    className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
               <p className="text-lg font-semibold text-zinc-900">{promo.name}</p>
               <p className="text-sm text-blue-700">{promo.description}</p>
               <div className="flex flex-wrap gap-2">
@@ -418,6 +451,41 @@ export default function Products() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Modal editar promoción ─────────────────────────────── */}
+      {editingPromo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold">Editar promoción</h3>
+              <button onClick={() => setEditingPromo(null)} className="p-1.5 rounded-lg hover:bg-gray-100">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <input
+              value={editingPromo.name}
+              onChange={e => setEditingPromo(p => ({ ...p, name: e.target.value }))}
+              placeholder="Nombre de la promoción"
+              className="w-full h-11 px-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
+              autoFocus
+            />
+            <input
+              value={editingPromo.description}
+              onChange={e => setEditingPromo(p => ({ ...p, description: e.target.value }))}
+              placeholder="Descripción (opcional)"
+              className="w-full h-11 px-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setEditingPromo(null)} className="flex-1 h-10 border border-gray-200 rounded-xl text-sm font-semibold">
+                Cancelar
+              </button>
+              <button onClick={handleSavePromo} className="flex-1 h-10 bg-zinc-900 text-white rounded-xl text-sm font-semibold hover:bg-zinc-800">
+                Guardar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

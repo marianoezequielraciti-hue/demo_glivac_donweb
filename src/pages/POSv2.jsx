@@ -1006,7 +1006,7 @@ export default function POSv2() {
         <div
           className={`bg-white border border-gray-100 shadow-sm flex flex-col ${
             showMobileCart
-              ? 'fixed inset-x-0 bottom-0 z-40 rounded-t-2xl max-h-[90vh] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:rounded-2xl'
+              ? 'fixed inset-x-0 bottom-0 z-40 rounded-t-2xl max-h-[95vh] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:rounded-2xl'
               : 'hidden lg:flex rounded-2xl'
           }`}
           style={!showMobileCart ? { maxHeight: 'calc(100vh - 90px)', position: 'sticky', top: '80px' } : undefined}
@@ -1026,7 +1026,7 @@ export default function POSv2() {
             </div>
           </div>
 
-          <div className="overflow-y-auto p-4 space-y-2" style={{ minHeight: '420px', maxHeight: 'calc(100vh - 420px)' }}>
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
             {cart.length === 0 && (
               <div className="h-full flex items-center justify-center text-sm text-gray-400 text-center py-8">
                 Tocá un producto<br/>para agregarlo
@@ -1061,7 +1061,7 @@ export default function POSv2() {
           </div>
 
           {completedSale ? (
-            <div className="p-4 border-t border-gray-100 space-y-3">
+            <div className="shrink-0 p-4 border-t border-gray-100 space-y-3">
               <div className="bg-emerald-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider">Venta registrada</p>
                 <p className="text-lg font-bold text-emerald-700 mt-1">{fmtMoney(completedSale.total)}</p>
@@ -1077,7 +1077,7 @@ export default function POSv2() {
               </div>
             </div>
           ) : (
-            <div className="p-4 border-t border-gray-100 space-y-3">
+            <div className="shrink-0 p-4 border-t border-gray-100 space-y-3">
               {/* Payment method */}
               {!splitMode ? (
                 <div className="space-y-2">

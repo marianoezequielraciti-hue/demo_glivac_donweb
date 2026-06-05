@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import authRoutes   from './backend/routes/auth.js';
 import tableRoutes  from './backend/routes/tables.js';
+import { runMigrations } from './backend/migrate.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -27,7 +28,12 @@ app.use((err, _req, res, _next) => {
   if (!res.headersSent) res.status(500).json({ error: 'Error interno del servidor' });
 });
 
-app.listen(PORT, () => console.log(`Glivac corriendo en puerto ${PORT}`));
+runMigrations()
+  .then(() => app.listen(PORT, () => console.log(`Glivac corriendo en puerto ${PORT}`)))
+  .catch(err => {
+    console.error('[FATAL] Migration failed, server not started:', err);
+    process.exit(1);
+  });
 
 // ── Process-level safety net ───────────────────────────────────────────────
 // Evita que una excepción no capturada mate el proceso Node

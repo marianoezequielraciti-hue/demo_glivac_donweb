@@ -1057,7 +1057,7 @@ export default function POSv2() {
           </div>
 
           {completedSale ? (
-            <div className="shrink-0 p-4 border-t border-gray-100 space-y-3">
+            <div className="shrink-0 p-4 pb-24 lg:pb-4 border-t border-gray-100 space-y-3">
               <div className="bg-emerald-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider">Venta registrada</p>
                 <p className="text-lg font-bold text-emerald-700 mt-1">{fmtMoney(completedSale.total)}</p>
@@ -1073,7 +1073,7 @@ export default function POSv2() {
               </div>
             </div>
           ) : (
-            <div className="shrink-0 p-4 border-t border-gray-100 space-y-3">
+            <div className="shrink-0 p-4 pb-24 lg:pb-4 border-t border-gray-100 space-y-3">
               {/* Payment method */}
               {!splitMode ? (
                 <div className="space-y-2">

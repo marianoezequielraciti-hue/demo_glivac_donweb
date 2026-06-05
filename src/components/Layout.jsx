@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { to: '/fiados', label: 'Fiados', adminOnly: false },
   { to: '/clientes', label: 'Clientes', adminOnly: false },
   { to: '/reportes', label: 'Reportes', adminOnly: false },
-  { to: '/scanner', label: 'Scanner', adminOnly: false },
+  // { to: '/scanner', label: 'Scanner', adminOnly: false },
   { to: '/config', label: 'Config', adminOnly: false },
 ]
 

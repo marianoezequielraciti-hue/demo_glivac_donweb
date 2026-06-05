@@ -968,10 +968,10 @@ export default function POSv2() {
                   disabled={disabled}
                   className={`text-left p-3 rounded-xl border transition-all ${
                     disabled
-                      ? 'opacity-40 cursor-not-allowed border-gray-100 bg-gray-50'
+                      ? 'opacity-40 cursor-not-allowed border-gray-100 bg-gray-50 shadow-sm'
                       : inCart
-                        ? 'border-zinc-900 bg-zinc-50 shadow-sm'
-                        : 'border-gray-100 bg-white hover:border-blue-200 hover:shadow-sm'
+                        ? 'border-zinc-900 bg-zinc-50 shadow-md'
+                        : 'border-gray-200 bg-white shadow-md hover:border-blue-300 hover:shadow-lg'
                   }`}
                 >
                   <p className="text-[10px] text-gray-400 uppercase tracking-wider truncate">{product.category}</p>
@@ -1033,7 +1033,7 @@ export default function POSv2() {
               </div>
             )}
             {cart.map(item => (
-              <div key={item.product_id} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+              <div key={item.product_id} className="flex items-center gap-2 p-2.5 bg-white border border-gray-100 rounded-xl shadow-sm">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{item.product_name}</p>
                   <p className="text-xs text-gray-500">{fmtMoney(item.unit_price)} × {item.quantity} = {fmtMoney(item.subtotal)}</p>

@@ -961,7 +961,7 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
       )}
 
       {/* ── ANÁLISIS IA ─────────────────────────────────────────── */}
-      <div ref={insightsRef}>
+      {false && <div ref={insightsRef}>
         <Widget className="p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -1026,10 +1026,10 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
             )}
           </AnimatePresence>
         </Widget>
-      </div>
+      </div>}
 
       {/* ── ANÁLISIS DE COMPRAS IA ──────────────────────────────── */}
-      <div ref={purchaseInsightsRef}>
+      {false && <div ref={purchaseInsightsRef}>
         <Widget className="p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -1123,10 +1123,10 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
             )}
           </AnimatePresence>
         </Widget>
-      </div>
+      </div>}
 
       {/* ── ANÁLISIS DE PRECIOS DE VENTA IA ────────────────────── */}
-      <div ref={salesPriceInsightsRef}>
+      {false && <div ref={salesPriceInsightsRef}>
         <Widget className="p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -1218,7 +1218,7 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
             )}
           </AnimatePresence>
         </Widget>
-      </div>
+      </div>}
 
       {/* ── PRESUPUESTOS ────────────────────────────────────────── */}
       {budgetStats.total > 0 && (

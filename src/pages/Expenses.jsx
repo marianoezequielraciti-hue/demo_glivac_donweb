@@ -45,7 +45,8 @@ export default function Expenses() {
       const { data } = await q
       return data || []
     },
-    enabled: !!user,
+    // No-admin users must wait until their store_id is resolved to avoid cross-store data
+    enabled: !!user && (isAdmin || !!effectiveStoreId),
   })
 
   const { data: dbCategories = [] } = useQuery({

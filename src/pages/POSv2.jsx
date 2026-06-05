@@ -1006,15 +1006,15 @@ export default function POSv2() {
         <div
           className={`bg-white border border-gray-100 shadow-sm flex flex-col ${
             showMobileCart
-              ? 'fixed inset-x-0 bottom-0 z-40 rounded-t-2xl max-h-[95vh] lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:rounded-2xl'
+              ? 'fixed inset-x-0 bottom-0 z-40 rounded-t-2xl max-h-[95vh] overflow-hidden lg:static lg:inset-auto lg:z-auto lg:max-h-none lg:overflow-visible lg:rounded-2xl'
               : 'hidden lg:flex rounded-2xl'
           }`}
           style={!showMobileCart ? { maxHeight: 'calc(100vh - 90px)', position: 'sticky', top: '80px' } : undefined}
         >
-          {/* Mobile: botón volver prominente */}
+          {/* Mobile: botón volver prominente — shrink-0 para que no desaparezca con muchos ítems */}
           <button
             onClick={() => setShowMobileCart(false)}
-            className="lg:hidden w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-zinc-900 text-white active:bg-zinc-800"
+            className="lg:hidden shrink-0 w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-zinc-900 text-white active:bg-zinc-800"
           >
             <ArrowLeft className="w-5 h-5 shrink-0" />
             <span className="font-semibold text-sm">Agregar más productos</span>

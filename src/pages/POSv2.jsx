@@ -957,7 +957,7 @@ export default function POSv2() {
           )}
 
           {/* Product grid */}
-          <div className="grid grid-cols-2 gap-2 pb-24 lg:pb-0">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 pb-24 lg:pb-0">
             {filteredProducts.map(product => {
               const disabled = !product.allow_negative_stock && product.current_stock <= 0
               const inCart = cart.find(i => i.product_id === product.id)

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { formatDateOnlyART, formatDateTimeART, fmtMoney } from '@/components/argentina'
 import { useAuth } from '@/hooks/useAuth'
 import { useStoreFilter } from '@/hooks/useStoreFilter'
-import { Loader2, Plus, X, Search, Printer, Share2, TrendingUp, FileText, CreditCard, Clock } from 'lucide-react'
+import { Loader2, Plus, X, Search, Printer, Share2, TrendingUp, FileText, CreditCard, Clock, ChevronDown } from 'lucide-react'
 
 const EMPTY_CLIENT = {
   full_name: '',
@@ -24,13 +24,6 @@ const EMPTY_ENTRY = {
   description: '',
 }
 
-const EMPTY_BUDGET = {
-  valid_until: '',
-  notes: '',
-  status: 'draft',
-  items: [],
-}
-
 const BUDGET_STATUSES = [
   { value: 'draft',    label: 'Borrador',  color: 'bg-gray-100 text-gray-600' },
   { value: 'sent',     label: 'Enviado',   color: 'bg-blue-100 text-blue-700' },
@@ -43,14 +36,6 @@ const MOVEMENT_TYPES = [
   { value: 'debit',  label: 'Cargo' },
   { value: 'credit', label: 'Pago' },
 ]
-
-function createBudgetNumber() {
-  return `P-${Date.now().toString().slice(-8)}`
-}
-
-function computeBudgetSubtotal(items) {
-  return items.reduce((sum, item) => sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)), 0)
-}
 
 function budgetStatusInfo(status) {
   return BUDGET_STATUSES.find(s => s.value === status) || { label: status, color: 'bg-gray-100 text-gray-600' }
@@ -228,9 +213,9 @@ export default function Clients() {
   const [editingClient, setEditingClient] = useState(null)
   const [clientForm, setClientForm] = useState(EMPTY_CLIENT)
 
-  const [showBudgetForm, setShowBudgetForm] = useState(false)
-  const [budgetForm, setBudgetForm] = useState(EMPTY_BUDGET)
-  const [productToAdd, setProductToAdd] = useState('')
+  const [openBudgets, setOpenBudgets] = useState(true)
+  const [openCC, setOpenCC] = useState(true)
+  const [openFiados, setOpenFiados] = useState(true)
 
   const [entryForm, setEntryForm] = useState(EMPTY_ENTRY)
   const [showEntryForm, setShowEntryForm] = useState(false)
@@ -244,18 +229,6 @@ export default function Clients() {
     queryKey: ['clients', activeStoreId],
     queryFn: async () => {
       let query = supabase.from('clients').select('*').order('full_name')
-      if (activeStoreId) query = query.eq('store_id', activeStoreId)
-      const { data, error } = await query
-      if (error) throw error
-      return data || []
-    },
-    enabled: !!user,
-  })
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['client-products', activeStoreId],
-    queryFn: async () => {
-      let query = supabase.from('products').select('id, name, sale_price, barcode').eq('active', true).order('name')
       if (activeStoreId) query = query.eq('store_id', activeStoreId)
       const { data, error } = await query
       if (error) throw error
@@ -331,7 +304,6 @@ export default function Clients() {
 
   const pendingBudgets = budgets.filter(b => ['draft', 'sent', 'approved'].includes(b.status) && !b.posted_to_account)
   const totalBudgetado = budgets.reduce((s, b) => s + Number(b.subtotal || 0), 0)
-  const budgetSubtotal = computeBudgetSubtotal(budgetForm.items)
 
   // ── Client mutations ───────────────────────────────────────────────────────
   const clientMutation = useMutation({
@@ -384,21 +356,6 @@ export default function Clients() {
   }
 
   // ── Budget mutations ───────────────────────────────────────────────────────
-  const budgetMutation = useMutation({
-    mutationFn: async (payload) => {
-      const { error } = await supabase.from('budgets').insert(payload)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budgets'] })
-      toast.success('Presupuesto guardado')
-      setBudgetForm(EMPTY_BUDGET)
-      setProductToAdd('')
-      setShowBudgetForm(false)
-    },
-    onError: (err) => toast.error(err.message || 'No se pudo guardar el presupuesto'),
-  })
-
   const budgetStatusMutation = useMutation({
     mutationFn: async ({ id, status }) => {
       const { error } = await supabase.from('budgets').update({ status }).eq('id', id)
@@ -435,50 +392,6 @@ export default function Clients() {
     },
     onError: (err) => toast.error(err.message || 'No se pudo pasar a cuenta corriente'),
   })
-
-  const handleCreateBudget = () => {
-    if (!selectedClient) { toast.error('Seleccioná un cliente'); return }
-    if (!activeStoreId) { toast.error('Seleccioná un negocio'); return }
-    if (!budgetForm.items.length) { toast.error('Agregá al menos un producto'); return }
-    budgetMutation.mutate({
-      client_id: selectedClient.id,
-      store_id: activeStoreId,
-      budget_number: createBudgetNumber(),
-      status: budgetForm.status,
-      items: budgetForm.items,
-      subtotal: budgetSubtotal,
-      notes: budgetForm.notes?.trim() || null,
-      valid_until: budgetForm.valid_until || null,
-    })
-  }
-
-  const handleAddBudgetItem = () => {
-    const product = products.find(p => p.id === productToAdd)
-    if (!product) return
-    setBudgetForm(prev => ({
-      ...prev,
-      items: [...prev.items, {
-        product_id: product.id,
-        product_name: product.name,
-        quantity: 1,
-        unit_price: Number(product.sale_price || 0),
-        subtotal: Number(product.sale_price || 0),
-      }],
-    }))
-    setProductToAdd('')
-  }
-
-  const handleBudgetItemChange = (index, field, value) => {
-    setBudgetForm(prev => {
-      const nextItems = prev.items.map((item, i) => {
-        if (i !== index) return item
-        const next = { ...item, [field]: field === 'product_name' ? value : Number(value || 0) }
-        next.subtotal = Number(next.quantity || 0) * Number(next.unit_price || 0)
-        return next
-      })
-      return { ...prev, items: nextItems }
-    })
-  }
 
   // ── Account entry mutation ─────────────────────────────────────────────────
   const accountEntryMutation = useMutation({
@@ -682,120 +595,17 @@ export default function Clients() {
 
               {/* Presupuestos */}
               <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-                <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setOpenBudgets(v => !v)}
+                  className="w-full flex items-center justify-between group"
+                >
                   <h2 className="text-base font-semibold text-gray-900">Presupuestos</h2>
-                  <button
-                    onClick={() => setShowBudgetForm(v => !v)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Nuevo presupuesto
-                  </button>
-                </div>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${openBudgets ? 'rotate-180' : ''}`} />
+                </button>
 
-                {/* Budget form (collapsible) */}
-                {showBudgetForm && (
-                  <div className="border border-gray-100 rounded-2xl p-4 space-y-3 bg-gray-50">
-                    <div className="flex flex-wrap gap-2">
-                      <select
-                        value={productToAdd}
-                        onChange={e => setProductToAdd(e.target.value)}
-                        className="h-10 flex-1 min-w-[180px] px-3 border border-gray-200 rounded-xl text-sm bg-white"
-                      >
-                        <option value="">Agregar producto...</option>
-                        {products.map(p => <option key={p.id} value={p.id}>{p.name} · {fmtMoney(p.sale_price)}</option>)}
-                      </select>
-                      <button
-                        onClick={handleAddBudgetItem}
-                        disabled={!productToAdd}
-                        className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-white disabled:opacity-40 bg-white"
-                      >
-                        Agregar
-                      </button>
-                      <input
-                        value={budgetForm.valid_until}
-                        onChange={e => setBudgetForm(prev => ({ ...prev, valid_until: e.target.value }))}
-                        type="date"
-                        className="h-10 px-3 border border-gray-200 rounded-xl text-sm bg-white"
-                      />
-                      <select
-                        value={budgetForm.status}
-                        onChange={e => setBudgetForm(prev => ({ ...prev, status: e.target.value }))}
-                        className="h-10 px-3 border border-gray-200 rounded-xl text-sm bg-white"
-                      >
-                        {BUDGET_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                      </select>
-                    </div>
-
-                    {budgetForm.items.length > 0 && (
-                      <div className="space-y-2">
-                        {budgetForm.items.map((item, index) => (
-                          <div key={`${item.product_id}-${index}`} className="flex flex-wrap gap-2 items-center">
-                            <input
-                              value={item.product_name}
-                              onChange={e => handleBudgetItemChange(index, 'product_name', e.target.value)}
-                              className="h-9 flex-1 min-w-[120px] px-3 border border-gray-200 rounded-lg text-sm bg-white"
-                            />
-                            <input
-                              value={item.quantity}
-                              onChange={e => handleBudgetItemChange(index, 'quantity', e.target.value)}
-                              type="number" min="1" placeholder="Cant."
-                              className="h-9 w-20 px-3 border border-gray-200 rounded-lg text-sm bg-white"
-                            />
-                            <input
-                              value={item.unit_price}
-                              onChange={e => handleBudgetItemChange(index, 'unit_price', e.target.value)}
-                              type="number" min="0" placeholder="Precio"
-                              className="h-9 w-28 px-3 border border-gray-200 rounded-lg text-sm bg-white"
-                            />
-                            <span className="h-9 px-3 rounded-lg bg-white border border-gray-100 flex items-center text-sm font-semibold text-zinc-900 shrink-0">
-                              {fmtMoney(item.subtotal)}
-                            </span>
-                            <button
-                              onClick={() => setBudgetForm(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }))}
-                              className="h-9 w-9 flex items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-50"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-sm font-semibold">
-                          <span className="text-gray-500">Total</span>
-                          <span className="text-gray-900">{fmtMoney(budgetSubtotal)}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <textarea
-                      value={budgetForm.notes}
-                      onChange={e => setBudgetForm(prev => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Notas del presupuesto (opcional)"
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none bg-white"
-                    />
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowBudgetForm(false)}
-                        className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-white"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={handleCreateBudget}
-                        disabled={budgetMutation.isPending || !budgetForm.items.length}
-                        className="flex-1 h-10 rounded-xl bg-zinc-900 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {budgetMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Guardar presupuesto
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Budget list */}
-                {budgets.length === 0 && !showBudgetForm && (
-                  <p className="text-sm text-gray-400 py-4 text-center">Este cliente no tiene presupuestos aún</p>
+                {openBudgets && <>
+                {budgets.length === 0 && (
+                  <p className="text-sm text-gray-400 py-2 text-center">Este cliente no tiene presupuestos aún</p>
                 )}
                 <div className="space-y-3">
                   {budgets.map(budget => {
@@ -868,15 +678,24 @@ export default function Clients() {
                     )
                   })}
                 </div>
+                </>}
               </div>
 
               {/* Cuenta corriente */}
               <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
+                <button
+                  onClick={() => setOpenCC(v => !v)}
+                  className="w-full flex items-center justify-between"
+                >
+                  <div className="text-left">
                     <h2 className="text-base font-semibold text-gray-900">Cuenta corriente</h2>
                     <p className="text-xs text-gray-400">{accountEntries.length} movimientos</p>
                   </div>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${openCC ? 'rotate-180' : ''}`} />
+                </button>
+
+                {openCC && <>
+                <div className="flex justify-end">
                   <button
                     onClick={() => setShowEntryForm(v => !v)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors"
@@ -948,6 +767,7 @@ export default function Clients() {
                     </div>
                   ))}
                 </div>
+                </>}
               </div>
 
               {/* ── Fiados del cliente ─────────────────────────────────────── */}
@@ -957,8 +777,11 @@ export default function Clients() {
                 const totalDeuda = pendientes.reduce((s, f) => s + (f.amount || 0), 0)
                 return (
                   <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
+                    <button
+                      onClick={() => setOpenFiados(v => !v)}
+                      className="w-full flex items-center justify-between"
+                    >
+                      <div className="text-left">
                         <h2 className="text-base font-semibold text-gray-900">Fiados</h2>
                         {pendientes.length > 0 && (
                           <p className="text-xs text-amber-600 mt-0.5">
@@ -966,13 +789,17 @@ export default function Clients() {
                           </p>
                         )}
                       </div>
-                      {totalDeuda > 0 && (
-                        <span className="px-3 py-1 bg-amber-100 text-amber-700 text-sm font-bold rounded-full">
-                          {fmtMoney(totalDeuda)}
-                        </span>
-                      )}
-                    </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {totalDeuda > 0 && (
+                          <span className="px-3 py-1 bg-amber-100 text-amber-700 text-sm font-bold rounded-full">
+                            {fmtMoney(totalDeuda)}
+                          </span>
+                        )}
+                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${openFiados ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
 
+                    {openFiados && <>
                     {clientFiados.length === 0 && (
                       <p className="text-sm text-gray-400 py-2">Este cliente no tiene fiados registrados.</p>
                     )}
@@ -1018,6 +845,7 @@ export default function Clients() {
                         ))}
                       </div>
                     )}
+                    </>}
                   </div>
                 )
               })()}

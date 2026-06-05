@@ -585,7 +585,7 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
       {/* ── KPIs FILA 1 ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Widget className="p-5">
-          <p className="text-xs text-[#86868b] font-medium mb-2">Ingresos netos</p>
+          <p className="text-xs text-[#86868b] font-medium mb-2">Ingresos brutos</p>
           <p className="text-2xl font-semibold text-[#1d1d1f] tracking-tight">
             <AnimatedNumber value={totalRevenue} format={v => fmtMoney(Math.round(v))} />
           </p>
@@ -608,7 +608,10 @@ Respondé ÚNICAMENTE con este JSON exacto (sin markdown, sin texto extra):
           <p className={`text-2xl font-semibold tracking-tight ${marginPct >= 20 ? 'text-[#34c759]' : marginPct >= 10 ? 'text-amber-500' : 'text-[#ff3b30]'}`}>
             <AnimatedNumber value={marginPct} format={v => `${Math.round(v)}%`} />
           </p>
-          <p className="text-xs text-[#86868b] mt-1">Ganancia: {fmtMoney(totalProfit)}</p>
+          <p className="text-xs text-[#86868b] mt-1">Margen bruto · G. bruta: {fmtMoney(totalProfit)}</p>
+          <p className={`text-sm font-bold mt-1.5 ${netProfit >= 0 ? 'text-[#34c759]' : 'text-[#ff3b30]'}`}>
+            Ganancia neta: {fmtMoney(netProfit)}
+          </p>
         </Widget>
         <Widget className="p-5">
           <p className="text-xs text-[#86868b] font-medium mb-2">Utilidad neta</p>

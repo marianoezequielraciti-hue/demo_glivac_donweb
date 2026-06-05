@@ -32,7 +32,7 @@ export default function Layout() {
     }`
 
   return (
-    <div className="min-h-screen bg-[#c0c0c0] dark:bg-zinc-950">
+    <div className="min-h-screen bg-[#e8e8ea] dark:bg-zinc-950">
       <header className="bg-white/85 dark:bg-zinc-900/92 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-700/60 fixed inset-x-0 top-0 z-50">
         <div className="max-w-[1200px] mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="text-sm font-semibold tracking-[0.15em] text-zinc-900 shrink-0">
